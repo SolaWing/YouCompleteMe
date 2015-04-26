@@ -91,12 +91,14 @@ def GetBufferOption( buffer_object, option ):
   # buffer_object was a hidden buffer (with option = 'ft'). This was all due to
   # a Vim bug. Until this is fixed, we won't use it.
 
-  to_eval = 'getbufvar({0}, "&{1}")'.format( buffer_object.number, option )
-  return GetVariableValue( to_eval )
+  return buffer_object.options[option]
+  #to_eval = 'getbufvar({0}, "&{1}")'.format( buffer_object.number, option )
+  #return GetVariableValue( to_eval )
 
 
 def BufferModified( buffer_object ):
-  return bool( int( GetBufferOption( buffer_object, 'mod' ) ) )
+  # return bool( int( GetBufferOption( buffer_object, 'mod' ) ) )
+  return buffer_object.options['mod']
 
 
 def GetUnsavedAndCurrentBufferData():
@@ -302,7 +304,9 @@ def VimExpressionToPythonType( vim_expression ):
 
 
 def HiddenEnabled( buffer_object ):
-  return bool( int( GetBufferOption( buffer_object, 'hid' ) ) )
+  # hid is not a buffer local option
+  to_eval = 'getbufvar({0}, "&hid")'.format( buffer_object.number )
+  return bool( int( GetVariableValue( to_eval ) ) )
 
 
 def BufferIsUsable( buffer_object ):
