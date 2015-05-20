@@ -184,6 +184,9 @@ class YouCompleteMe( object ):
 
 
   def CreateCompletionRequest( self, force_semantic = False ):
+    # BuildRequestData will get all modify buffer. 
+    # if buffer is very large, may delay response and cause flick
+    # if response speed less than one frame, will flick
     request_data = BuildRequestData()
     if ( not self.NativeFiletypeCompletionAvailable() and
          self.CurrentFiletypeCompletionEnabled() ):

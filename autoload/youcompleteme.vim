@@ -427,8 +427,8 @@ function! s:OnFileReadyToParse()
   let buffer_changed = b:changedtick != b:ycm_changedtick.file_ready_to_parse
   if buffer_changed
     py ycm_state.OnFileReadyToParse()
+    let b:ycm_changedtick.file_ready_to_parse = b:changedtick
   endif
-  let b:ycm_changedtick.file_ready_to_parse = b:changedtick
 endfunction
 
 
@@ -659,7 +659,24 @@ function! s:InvokeCompletion()
   " automatically replaces the current text with it. Calling <c-p> forces Vim to
   " deselect the first candidate and in turn preserve the user's current text
   " until he explicitly chooses to replace it with a completion.
+  "
   call feedkeys( "\<C-X>\<C-U>\<C-P>", 'n' )
+  " change to complete() still flick
+  " let col = youcompleteme#Complete(1, '')
+  " if col < 0
+  "   return
+  " endif
+  " " youcompleteme#Complete not use base
+  " let ret = youcompleteme#Complete(0, '')
+  " if len(ret) > 0
+  "   if type(ret) == 4 " dict
+  "     let words = ret.words
+  "   else
+  "     let words = ret
+  "   endif
+  "   call feedkeys("\<C-P>", "n")
+  "   call complete(col+1, words)
+  " endif
 endfunction
 
 
