@@ -550,8 +550,12 @@ class YouCompleteMe( object ):
 
   def _AddExtraConfDataIfNeeded( self, extra_data ):
     def BuildExtraConfData( extra_conf_vim_data ):
-      return dict( ( expr, vimsupport.VimExpressionToPythonType( expr ) )
-                   for expr in extra_conf_vim_data )
+        return dict( ( key, vimsupport.VimExpressionToPythonType( expr ) )
+                    for key, expr in
+                    map(lambda( i ):
+                            ( i, i ) if isinstance( i, basestring ) else
+                            ( i[0], i[1] ),
+                        extra_conf_vim_data ) )
 
     extra_conf_vim_data = self._user_options[ 'extra_conf_vim_data' ]
     if extra_conf_vim_data:
