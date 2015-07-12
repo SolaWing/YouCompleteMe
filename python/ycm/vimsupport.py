@@ -358,10 +358,14 @@ def JumpToLocation( filename, line, column ):
         user_command = 'new-tab'
 
     command = BUFFER_COMMAND_MAP.get( user_command, 'edit' )
-    if command == 'edit' and not BufferIsUsable( vim.current.buffer ):
-      command = 'split'
-    vim.command( 'keepjumps {0} {1}'.format( command,
-                                             EscapedFilepath( filename ) ) )
+    filename = EscapedFilepath( filename )
+    if command == 'edit':
+        try:
+            vim.command( 'keepjumps {0} {1}'.format( command, filename ) )
+        except vim.error as e:
+            vim.command( 'keepjumps {0} {1}'.format( 'split', filename ) )
+    else:
+        vim.command( 'keepjumps {0} {1}'.format( command, filename ) )
   vim.current.window.cursor = ( line, column - 1 )
 
   # Center the screen on the jumped-to location
