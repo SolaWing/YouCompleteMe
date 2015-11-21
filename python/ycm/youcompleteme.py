@@ -25,7 +25,7 @@ import re
 import signal
 import base64
 from subprocess import PIPE
-from ycm import vimsupport
+from ycm import paths, vimsupport
 from ycmd import utils
 from ycmd.request_wrap import RequestWrap
 from ycm.diagnostic_interface import DiagnosticInterface
@@ -113,27 +113,26 @@ class YouCompleteMe( object ):
       json.dump( options_dict, options_file )
       options_file.flush()
 
-      args = [ utils.PathToPythonInterpreter(),
-               _PathToServerScript(),
+      args = [ paths.PathToPythonInterpreter(),
+               paths.PathToServerScript(),
                '--port={0}'.format( server_port ),
                '--options_file={0}'.format( options_file.name ),
                '--log={0}'.format( self._user_options[ 'server_log_level' ] ),
                '--idle_suicide_seconds={0}'.format(
                   SERVER_IDLE_SUICIDE_SECONDS )]
 
-      if not self._user_options[ 'server_use_vim_stdout' ]:
-        filename_format = os.path.join( utils.PathToTempDir(),
-                                        'server_{port}_{std}.log' )
+      filename_format = os.path.join( utils.PathToTempDir(),
+                                      'server_{port}_{std}.log' )
 
-        self._server_stdout = filename_format.format( port = server_port,
-                                                      std = 'stdout' )
-        self._server_stderr = filename_format.format( port = server_port,
-                                                      std = 'stderr' )
-        args.append('--stdout={0}'.format( self._server_stdout ))
-        args.append('--stderr={0}'.format( self._server_stderr ))
+      self._server_stdout = filename_format.format( port = server_port,
+                                                    std = 'stdout' )
+      self._server_stderr = filename_format.format( port = server_port,
+                                                    std = 'stderr' )
+      args.append( '--stdout={0}'.format( self._server_stdout ) )
+      args.append( '--stderr={0}'.format( self._server_stderr ) )
 
-        if self._user_options[ 'server_keep_logfiles' ]:
-          args.append('--keep_logfiles')
+      if self._user_options[ 'server_keep_logfiles' ]:
+        args.append( '--keep_logfiles' )
 
       self._server_popen = utils.SafePopen( args, stdin_windows = PIPE,
                                             stdout = PIPE, stderr = PIPE)
@@ -177,6 +176,7 @@ class YouCompleteMe( object ):
 
 
   def RestartServer( self ):
+    self._CloseLogs()
     vimsupport.PostVimMessage( 'Restarting ycmd server...' )
     self._user_notified_about_crash = False
     self._ServerCleanup()
@@ -511,6 +511,47 @@ class YouCompleteMe( object ):
     return debug_info
 
 
+  def _OpenLogs( self, stdout = True, stderr = True ):
+    # Open log files in a horizontal window with the same behavior as the
+    # preview window (same height and winfixheight enabled). Automatically
+    # watch for changes. Set the cursor position at the end of the file.
+    options = {
+      'size': vimsupport.GetIntValue( '&previewheight' ),
+      'fix': True,
+      'watch': True,
+      'position': 'end'
+    }
+
+    if stdout:
+      vimsupport.OpenFilename( self._server_stdout, options )
+    if stderr:
+      vimsupport.OpenFilename( self._server_stderr, options )
+
+
+  def _CloseLogs( self, stdout = True, stderr = True ):
+    if stdout:
+      vimsupport.CloseBuffersForFilename( self._server_stdout )
+    if stderr:
+      vimsupport.CloseBuffersForFilename( self._server_stderr )
+
+
+  def ToggleLogs( self, stdout = True, stderr = True ):
+    if ( stdout and
+         vimsupport.BufferIsVisibleForFilename( self._server_stdout ) or
+         stderr and
+         vimsupport.BufferIsVisibleForFilename( self._server_stderr ) ):
+      return self._CloseLogs( stdout = stdout, stderr = stderr )
+
+    # Close hidden logfile buffers if any to keep a clean state
+    self._CloseLogs( stdout = stdout, stderr = stderr )
+
+    try:
+      self._OpenLogs( stdout = stdout, stderr = stderr )
+    except RuntimeError as error:
+      vimsupport.PostVimMessage( 'YouCompleteMe encountered an error when '
+                                 'opening logs: {0}.'.format( error ) )
+
+
   def CurrentFiletypeCompletionEnabled( self ):
     filetypes = vimsupport.CurrentFiletypes()
     filetype_to_disable = self._user_options[
@@ -561,11 +602,6 @@ class YouCompleteMe( object ):
     if extra_conf_vim_data:
       extra_data[ 'extra_conf_data' ] = BuildExtraConfData(
         extra_conf_vim_data )
-
-
-def _PathToServerScript():
-  dir_of_current_script = os.path.dirname( os.path.abspath( __file__ ) )
-  return os.path.join( dir_of_current_script, '../../third_party/ycmd/ycmd' )
 
 
 def _AddUltiSnipsDataIfNeeded( extra_data ):
