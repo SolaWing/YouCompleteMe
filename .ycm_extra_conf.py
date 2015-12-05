@@ -54,7 +54,7 @@ flags = [
 ## a "-std=<something>".
 ## For a C project, you would set this to something like 'c99' instead of
 ## 'c++11'.
-#'-std=c++11',
+#'-std=gnu99',
 '-D__arm__',
 '-arch armv7',
 '-miphoneos-version-min=6.0',
@@ -177,15 +177,24 @@ def IsHeaderFile( filename ):
 def isProjectRoot(directory):
     return os.path.exists(os.path.join(directory, '.git'))
 
-def findProjectRoot(filename):
+def pchFileInDir(directory):
+    for f in os.listdir(directory):
+        if f.endswith('.pch'): return os.path.join(directory, f)
+
+    return None
+
+def findProjectRootAndPchFile(filename):
     """ return project root or None. if not found"""
     filename = os.path.abspath(filename)
     directory = os.path.dirname(filename)
+    pchFile = None
     while directory and directory != '/':
-        if isProjectRoot(directory): return directory
+        # try to find a pchFile in parent directory
+        if pchFile is None: pchFile = pchFileInDir(directory)
+        if isProjectRoot(directory): break
         else: directory = os.path.dirname(directory)
-    else:
-        return None
+
+    return (directory, pchFile)
 
 headerDirsCacheDict = dict()
 def findAllHeaderDirectory(rootDirectory):
@@ -195,7 +204,13 @@ def findAllHeaderDirectory(rootDirectory):
 
     output = subprocess.check_output(['find', '-H', rootDirectory, '-name', '*.h'])
     headers = output.splitlines()
-    headerDirs = set(os.path.dirname(h) for h in headers)
+    headerDirs = set()
+    for h in headers:
+        h = os.path.dirname(h)
+        headerDirs.add(h)
+        # contains more one dir for import with module name
+        h = os.path.dirname(h)
+        headerDirs.add(h)
 
     headerDirsCacheDict[rootDirectory] = headerDirs
     return headerDirs
@@ -243,14 +258,21 @@ def FlagsForFile( filename, **kwargs ):
     final_flags = flags[:] #!! final_flags = []
 
     # find all headers in file project
-    project_root = findProjectRoot(filename)
+    project_root, pchFile = findProjectRootAndPchFile(filename)
     if project_root:
         try:
             headers = findAllHeaderDirectory(project_root)
             final_flags += ['-I'+s for s in headers]
+            if pchFile:
+                final_flags.append('-include'+pchFile)
         except Exception as e:
             import logging
             logging.error(e)
+
+    if filename.endswith('.m') or filename.endswith('.c'):
+        final_flags.append('-std=gnu99');
+    else:
+        final_flags.append('-std=gnu++11');
 
     try:
         final_flags += kwargs['client_data']['ycm_additional_flags']
