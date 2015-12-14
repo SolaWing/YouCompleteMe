@@ -238,6 +238,8 @@ def GetCompilationInfoForFile( filename ):
     return None
   return database.GetCompilationInfoForFile( filename )
 
+def escapeSpace( s ):
+    return s.replace(' ', r'\ ')
 
 def FlagsForFile( filename, **kwargs ):
   if database:
@@ -269,11 +271,11 @@ def FlagsForFile( filename, **kwargs ):
         try:
             headers, frameworks = findAllHeaderDirectory(project_root)
             if headers:
-                final_flags += ['-I'+s for s in headers]
+                final_flags += ['-I'+ escapeSpace(s) for s in headers]
             if frameworks:
-                final_flags += ['-iframework'+s for s in frameworks]
+                final_flags += ['-iframework'+escapeSpace(s) for s in frameworks]
             if pchFile:
-                final_flags.append('-include'+pchFile)
+                final_flags.append('-include'+escapeSpace(pchFile))
         except Exception as e:
             import logging
             logging.error(e)
