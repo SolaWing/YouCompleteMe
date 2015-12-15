@@ -193,6 +193,8 @@ def findProjectRootAndPchFile(filename):
         if pchFile is None: pchFile = pchFileInDir(directory)
         if isProjectRoot(directory): break
         else: directory = os.path.dirname(directory)
+    else:
+        return (None, None)
 
     return (directory, pchFile)
 
