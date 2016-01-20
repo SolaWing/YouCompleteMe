@@ -69,17 +69,13 @@ PatchNoProxy()
 signal.signal( signal.SIGINT, signal.SIG_IGN )
 
 HMAC_SECRET_LENGTH = 16
-NUM_YCMD_STDERR_LINES_ON_CRASH = 30
-SERVER_CRASH_MESSAGE_STDERR_FILE_DELETED = (
-  'The ycmd server SHUT DOWN (restart with :YcmRestartServer). '
-  'Logfile was deleted; set g:ycm_server_keep_logfiles to see errors '
-  'in the future.' )
 SERVER_CRASH_MESSAGE_STDERR_FILE = (
-  'The ycmd server SHUT DOWN (restart with :YcmRestartServer). ' +
-  'Stderr (last {0} lines):\n\n'.format( NUM_YCMD_STDERR_LINES_ON_CRASH ) )
-SERVER_CRASH_MESSAGE_SAME_STDERR = (
-  'The ycmd server SHUT DOWN (restart with :YcmRestartServer). '
-  ' check console output for logs!' )
+  "The ycmd server SHUT DOWN (restart with ':YcmRestartServer'). "
+  "Run ':YcmToggleLogs stderr' to check the logs." )
+SERVER_CRASH_MESSAGE_STDERR_FILE_DELETED = (
+  "The ycmd server SHUT DOWN (restart with ':YcmRestartServer'). "
+  "Logfile was deleted; set 'g:ycm_server_keep_logfiles' to see errors "
+  "in the future." )
 SERVER_IDLE_SUICIDE_SECONDS = 10800  # 3 hours
 
 
@@ -151,17 +147,11 @@ class YouCompleteMe( object ):
     if self._user_notified_about_crash or self.IsServerAlive():
       return
     self._user_notified_about_crash = True
-    if self._server_stderr:
-      try:
-        with open( self._server_stderr, 'r' ) as server_stderr_file:
-          error_output = ''.join( server_stderr_file.readlines()[
-              : - NUM_YCMD_STDERR_LINES_ON_CRASH ] )
-          vimsupport.PostMultiLineNotice( SERVER_CRASH_MESSAGE_STDERR_FILE +
-                                          error_output )
-      except IOError:
-        vimsupport.PostVimMessage( SERVER_CRASH_MESSAGE_STDERR_FILE_DELETED )
-    else:
-        vimsupport.PostVimMessage( SERVER_CRASH_MESSAGE_SAME_STDERR )
+    try:
+      vimsupport.CheckFilename( self._server_stderr )
+      vimsupport.PostVimMessage( SERVER_CRASH_MESSAGE_STDERR_FILE )
+    except RuntimeError:
+      vimsupport.PostVimMessage( SERVER_CRASH_MESSAGE_STDERR_FILE_DELETED )
 
 
   def ServerPid( self ):
@@ -235,8 +225,13 @@ class YouCompleteMe( object ):
     except KeyError:
       pass
 
-    exists_completer = ( self.IsServerAlive() and
-                         bool( SendCompleterAvailableRequest( filetype ) ) )
+    if not self.IsServerAlive():
+      return False
+
+    exists_completer = SendCompleterAvailableRequest( filetype )
+    if exists_completer is None:
+      return False
+
     self._available_completers[ filetype ] = exists_completer
     return exists_completer
 
@@ -393,6 +388,9 @@ class YouCompleteMe( object ):
   def _HasCompletionsThatCouldBeCompletedWithMoreText_NewerVim( self,
                                                                 completions ):
     completed_item = vimsupport.GetVariableValue( 'v:completed_item' )
+    if not completed_item:
+      return False
+
     completed_word = completed_item[ 'word' ]
     if not completed_word:
       return False
@@ -454,6 +452,11 @@ class YouCompleteMe( object ):
       return None
     return completion[ "extra_data" ][ "required_namespace_import" ]
 
+  def GetErrorCount( self ):
+    return self._diag_interface.GetErrorCount()
+
+  def GetWarningCount( self ):
+    return self._diag_interface.GetWarningCount()
 
   def DiagnosticsForCurrentFileReady( self ):
     return bool( self._latest_file_parse_request and
@@ -480,6 +483,32 @@ class YouCompleteMe( object ):
          self.NativeFiletypeCompletionUsable() ):
       self._diag_interface.UpdateWithNewDiagnostics(
         self.GetDiagnosticsFromStoredRequest() )
+
+
+  def ValidateParseRequest( self ):
+    if ( self.DiagnosticsForCurrentFileReady() and
+         self.NativeFiletypeCompletionUsable() ):
+
+      # YCM client has a hard-coded list of filetypes which are known to support
+      # diagnostics. These are found in autoload/youcompleteme.vim in
+      # s:diagnostic_ui_filetypes.
+      #
+      # For filetypes which don't support diagnostics, we just want to check the
+      # _latest_file_parse_request for any exception or UnknownExtraConf
+      # response, to allow the server to raise configuration warnings, etc.
+      # to the user. We ignore any other supplied data.
+      self._latest_file_parse_request.Response()
+
+      # We set the diagnostics request to None because we want to prevent
+      # repeated issuing of the same warnings/errors/prompts. Setting this to
+      # None makes DiagnosticsForCurrentFileReady return False until the next
+      # request is created.
+      #
+      # Note: it is the server's responsibility to determine the frequency of
+      # error/warning/prompts when receiving a FileReadyToParse event, but
+      # it our responsibility to ensure that we only apply the
+      # warning/error/prompt received once (for each event).
+      self._latest_file_parse_request = None
 
 
   def ShowDetailedDiagnostic( self ):
@@ -609,7 +638,14 @@ def _AddUltiSnipsDataIfNeeded( extra_data ):
     return
 
   try:
-    rawsnips = UltiSnips_Manager._snips( '', 1 )
+    # Since UltiSnips may run in a different python interpreter (python 3) than
+    # YCM, UltiSnips_Manager singleton is not necessary the same as the one
+    # used by YCM. In particular, it means that we cannot rely on UltiSnips to
+    # set the current filetypes to the singleton. We need to do it ourself.
+    UltiSnips_Manager.reset_buffer_filetypes()
+    UltiSnips_Manager.add_buffer_filetypes(
+      vimsupport.GetVariableValue( '&filetype' ) )
+    rawsnips = UltiSnips_Manager._snips( '', True )
   except:
     return
 
