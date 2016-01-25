@@ -29,7 +29,7 @@ class CompletionRequest( BaseRequest ):
   def __init__( self, request_data ):
     super( CompletionRequest, self ).__init__()
     self.request_data = request_data
-
+    self.doneItem = None
 
   def Start( self ):
     self._response_future = self.PostDataToHandlerAsync( self.request_data,

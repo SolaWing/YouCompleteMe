@@ -98,11 +98,12 @@ class YouCompleteMe( object ):
       'cs': lambda( self ): self._OnCompleteDone_Csharp()
     }
     clang_param_expand = lambda(self): self._OnCompleteDone_Clang()
-    self._param_expand_hooks = {
-      'c':      clang_param_expand,
-      'cpp':    clang_param_expand,
-      'objc':   clang_param_expand,
-      'objcpp': clang_param_expand,
+    self._complete_action_hooks = {
+        'c':      clang_param_expand,
+        'cpp':    clang_param_expand,
+        'objc':   clang_param_expand,
+        'objcpp': clang_param_expand,
+        '*':      lambda(self): self._OnCompleteDone_UltiSnip(),
     }
 
   def _SetupServer( self ):
@@ -303,14 +304,15 @@ class YouCompleteMe( object ):
       return
     SendEventNotificationAsync( 'CurrentIdentifierFinished' )
 
-  def OnParamExpand(self):
-    param_expand_actions = self.GetParamExpandHooks()
+  def OnCompleteAction(self):
+    param_expand_actions = self.GetCompleteActionHooks()
     for action in param_expand_actions:
-      action(self)
+        if action(self): return
 
-  def GetParamExpandHooks(self):
+  def GetCompleteActionHooks(self):
     filetypes = vimsupport.CurrentFiletypes()
-    for key, value in self._param_expand_hooks.iteritems():
+    filetypes.append("*")
+    for key, value in self._complete_action_hooks.iteritems():
       if key in filetypes:
         yield value
 
@@ -332,11 +334,15 @@ class YouCompleteMe( object ):
     if not latest_completion_request or not latest_completion_request.Done():
       return []
 
+    if latest_completion_request.doneItem:
+        return latest_completion_request.doneItem
+
     completions = latest_completion_request.RawResponse()
 
     result = self._FilterToMatchingCompletions( completions, True )
     result = list( result )
     if result:
+      latest_completion_request.doneItem = result
       return result
 
     if self._HasCompletionsThatCouldBeCompletedWithMoreText( completions ):
@@ -347,6 +353,7 @@ class YouCompleteMe( object ):
 
     result = self._FilterToMatchingCompletions( completions, False )
 
+    latest_completion_request.doneItem = result
     return list( result )
 
 
@@ -440,6 +447,19 @@ class YouCompleteMe( object ):
           return True
     return False
 
+  def _OnCompleteDone_UltiSnip(self):
+      if not USE_ULTISNIPS_DATA: return
+
+      completions = self.GetCompletionsUserMayHaveCompleted()
+      if not completions: return
+
+      completion = completions[0]
+      extra_menu_info = completion.get(u"extra_menu_info")
+      if not (extra_menu_info and extra_menu_info.startswith(u"<snip>")):
+          return
+
+      vim.eval('UltiSnips#ExpandSnippet()')
+      return True
 
   def _OnCompleteDone_Clang(self):
       if not USE_ULTISNIPS_DATA: return
@@ -448,14 +468,13 @@ class YouCompleteMe( object ):
       if not completions: return
 
       completion = completions[0]
-      menu_text = completion.get(u"menu_text");
+      menu_text = completion.get(u"menu_text")
       if not menu_text: return
 
       m = re.search(ur'%s((%s)\(\s*([^)]+?)\s*\)|\w+)'%(
             re.escape(completion[u"insertion_text"]),ur'(?:\^[^(]*)?'),
                     menu_text)
       if m:
-          #  print "match is:", m
           whole = m.group(1)
           if m.group(3): # match paren
               count = [1]
@@ -470,6 +489,7 @@ class YouCompleteMe( object ):
           anon = "".join( (ur'${1:', whole,
                            u"\\{\n\t$0\n\\}}" if m.group(2) else ur'}') )
           UltiSnips_Manager.expand_anon(anon)
+          return True
 
 
   def _OnCompleteDone_Csharp( self ):
