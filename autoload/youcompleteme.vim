@@ -223,6 +223,11 @@ function! s:SetUpKeyMappings()
     silent! exe 'nnoremap <unique> ' . g:ycm_key_detailed_diagnostics .
           \ ' :YcmShowDetailedDiagnostic<cr>'
   endif
+
+  if !empty( g:ycm_key_param_template )
+    silent! exe 'inoremap <expr> ' . g:ycm_key_param_template .
+                \ ' pumvisible()? "<C-y><C-r>=youcompleteme#OnParamExpand()<CR>" : "\' .g:ycm_key_param_template. '"'
+  endif
 endfunction
 
 
@@ -398,6 +403,10 @@ function! s:OnVimLeave()
   py ycm_state.OnVimLeave()
 endfunction
 
+function! youcompleteme#OnParamExpand()
+  py ycm_state.OnParamExpand()
+  return ""
+endfunction
 
 function! s:OnCompleteDone()
   py ycm_state.OnCompleteDone()
@@ -566,6 +575,7 @@ function! s:OnInsertEnter()
   endif
 
   let s:old_cursor_position = []
+
 endfunction
 
 

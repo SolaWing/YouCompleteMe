@@ -97,6 +97,13 @@ class YouCompleteMe( object ):
     self._complete_done_hooks = {
       'cs': lambda( self ): self._OnCompleteDone_Csharp()
     }
+    clang_param_expand = lambda(self): self._OnCompleteDone_Clang()
+    self._param_expand_hooks = {
+      'c':      clang_param_expand,
+      'cpp':    clang_param_expand,
+      'objc':   clang_param_expand,
+      'objcpp': clang_param_expand,
+    }
 
   def _SetupServer( self ):
     self._available_completers = {}
@@ -296,6 +303,16 @@ class YouCompleteMe( object ):
       return
     SendEventNotificationAsync( 'CurrentIdentifierFinished' )
 
+  def OnParamExpand(self):
+    param_expand_actions = self.GetParamExpandHooks()
+    for action in param_expand_actions:
+      action(self)
+
+  def GetParamExpandHooks(self):
+    filetypes = vimsupport.CurrentFiletypes()
+    for key, value in self._param_expand_hooks.iteritems():
+      if key in filetypes:
+        yield value
 
   def OnCompleteDone( self ):
     complete_done_actions = self.GetCompleteDoneHooks()
@@ -423,6 +440,36 @@ class YouCompleteMe( object ):
           return True
     return False
 
+
+  def _OnCompleteDone_Clang(self):
+      if not USE_ULTISNIPS_DATA: return
+
+      completions = self.GetCompletionsUserMayHaveCompleted()
+      if not completions: return
+
+      completion = completions[0]
+      menu_text = completion.get(u"menu_text");
+      if not menu_text: return
+
+      m = re.search(ur'%s((%s)\(\s*([^)]+?)\s*\)|\w+)'%(
+            re.escape(completion[u"insertion_text"]),ur'(?:\^[^(]*)?'),
+                    menu_text)
+      if m:
+          #  print "match is:", m
+          whole = m.group(1)
+          if m.group(3): # match paren
+              count = [1]
+              def replaceParam(match):
+                  count[0] += 1
+                  return u"${%d:%s}"%(count[0], match.group(0))
+              params = re.sub(ur'[^\s,][^,]*', replaceParam, m.group(3))
+              whole = "".join( (menu_text[m.start(1):m.start(3)],
+                                params,
+                                menu_text[m.end(3):m.end(1)]) )
+
+          anon = "".join( (ur'${1:', whole,
+                           u"\\{\n\t$0\n\\}}" if m.group(2) else ur'}') )
+          UltiSnips_Manager.expand_anon(anon)
 
 
   def _OnCompleteDone_Csharp( self ):
