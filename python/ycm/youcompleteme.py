@@ -352,9 +352,10 @@ class YouCompleteMe( object ):
       return []
 
     result = self._FilterToMatchingCompletions( completions, False )
+    result = list( result )
 
     latest_completion_request.doneItem = result
-    return list( result )
+    return result
 
 
   def _FilterToMatchingCompletions( self, completions, full_match_only ):
