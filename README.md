@@ -21,6 +21,7 @@ YouCompleteMe: a code-completion engine for Vim
     - [C-family semantic completion](#c-family-semantic-completion-engine-usage)
     - [JavaScript semantic completion](#javascript-semantic-completion)
     - [Rust semantic completion](#rust-semantic-completion)
+    - [Python semantic completion](#python-semantic-completion)
     - [Semantic completion for other languages](#semantic-completion-for-other-languages)
     - [Writing new semantic completers](#writing-new-semantic-completers)
     - [Diagnostic display](#diagnostic-display)
@@ -30,6 +31,7 @@ YouCompleteMe: a code-completion engine for Vim
     - [YcmCompleter subcommands](#ycmcompleter-subcommands)
 - [Options](#options)
 - [FAQ](#faq)
+- [Contributor Code of Conduct](#contributor-code-of-conduct)
 - [Contact](#contact)
 - [License](#license)
 
@@ -43,7 +45,7 @@ YouCompleteMe is a fast, as-you-type, fuzzy-search code completion engine for
 - a [Clang][]-based engine that provides native semantic code
   completion for C/C++/Objective-C/Objective-C++ (from now on referred to as
   "the C-family languages"),
-- a [Jedi][]-based completion engine for Python,
+- a [Jedi][]-based completion engine for Python 2 and 3 (using the [JediHTTP][] wrapper),
 - an [OmniSharp][]-based completion engine for C#,
 - a [Gocode][]-based completion engine for Go,
 - a [TSServer][]-based completion engine for TypeScript,
@@ -344,14 +346,15 @@ Compiling YCM **without** semantic support for C-family languages:
 
 The following additional language support options are available:
 
-- C# support: add `--omnisharp-completer` to `install.py`
-- Go support: ensure go is installed and add `--gocode-completer`
+- C# support: add `--omnisharp-completer` to `install.py`.
+  Be sure that [the build utility `msbuild` is in your PATH][add-msbuild-to-path].
+- Go support: ensure go is installed and add `--gocode-completer`.
 - TypeScript support: install [nodejs and npm][npm-install] then install the
   TypeScript SDK with `npm install -g typescript`.
 - JavaScript support: install [nodejs and npm][npm-install] and add
-  `--tern-completer` to `install.py`
+  `--tern-completer` to `install.py`.
 - Rust support: install [rustc and cargo][rust-install] and add
-  `--racer-completer` to `install.py`
+  `--racer-completer` to `install.py`.
 
 For example, to install with all language features, ensure npm, go, mono, rust,
 and typescript API are installed and in your `%PATH%`, then:
@@ -591,7 +594,7 @@ process.
     other flags. **If you compiled LLVM from source, this is the flag you should
     be using.**
 
-    Running the `make` command will also place the `libclang.[so|dylib|dll]` in
+    Running the `cmake` command will also place the `libclang.[so|dylib|dll]` in
     the `YouCompleteMe/third_party/ycmd` folder for you if you compiled with
     clang support (it needs to be there for YCM to work).
 
@@ -601,6 +604,7 @@ process.
     `YouCompleteMe/third_party/ycmd/third_party/OmniSharpServer` and run
     `msbuild` (Windows) or `xbuild` (other platforms, using mono) depending on
     your platform. If mono is not installed, install it.
+    When on Windows, be sure that [the build utility `msbuild` is in your PATH][add-msbuild-to-path].
 
   - Go support: If go is not installed on your system, install it and add it to
     your path. Navigate to `YouCompleteMe/third_party/ycmd/third_party/gocode`
@@ -656,11 +660,12 @@ Quick Feature Summary
 * Management of OmniSharp server instance
 * View documentation comments for identifiers (`GetDoc`)
 
-### Python 2
+### Python
 
 * Intelligent auto-completion
-* Go to declaration/definition (`GoTo`, etc.)
+* Go to declaration/definition, find references (`GoTo`, `GoToReferences`)
 * View documentation comments for identifiers (`GetDoc`)
+* Restart [JediHTTP][] server using a different Python interpreter
 
 ### Go
 
@@ -902,6 +907,20 @@ locate it.
 " In this example, the rust source code zip has been extracted to
 " /usr/local/rust/rustc-1.5.0
 let g:ycm_rust_src_path = '/usr/local/rust/rustc-1.5.0/src'
+```
+
+### Python semantic completion
+
+Completion and GoTo commands work out of the box with no additional
+configuration. Those features are provided by the [jedi][] library which
+supports a variety of python versions (2.6, 2.7, 3.2, 3.3 or 3.4) as long as it
+runs in the corresponding python interpreter. By default YCM runs [jedi][] with
+the same python interpreter used by [ycmd][], so if you would like to use a
+different interpreter, use the following option specifying the python binary to
+use. For example, to provide Python 3 completion in your project, set:
+
+```viml
+let g:ycm_python_binary_path = '/usr/bin/python3'
 ```
 
 ### Semantic completion for other languages
@@ -1178,7 +1197,7 @@ This command attempts to find all of the references within the project to the
 identifier under the cursor and populates the quickfix list with those
 locations.
 
-Supported in filetypes: `javascript`
+Supported in filetypes: `javascript, python`
 
 ### The `ClearCompilationFlagCache` subcommand
 
@@ -1320,7 +1339,14 @@ Supported in filetypes: `cs, javascript, go, rust`
 Restarts the semantic-engine-as-localhost-server for those semantic engines that
 work as separate servers that YCM talks to.
 
-Supported in filetypes: `cs, rust`
+An additional optional argument may be supplied for Python, specifying the
+python binary to use to restart the Python semantic engine.
+
+```viml
+:YcmCompleter RestartServer /usr/bin/python3.4
+```
+
+Supported in filetypes: `cs, rust, python`
 
 ### The `ReloadSolution` subcommand
 
@@ -2193,6 +2219,19 @@ Default: 1000
 let g:ycm_disable_for_files_larger_than_kb = 1000
 ```
 
+### The `g:ycm_python_binary_path` option
+
+This option specifies the Python interpreter to use to run the [jedi][]
+completion library.  Specify the python interpreter to use to get completions.
+By default the python under which [ycmd][] runs is used ([ycmd][] only runs
+under Python 2.6 or 2.7).
+
+Default: `''`
+
+```viml
+let g:ycm_python_binary_path = '/usr/bin/python3'
+```
+
 FAQ
 ---
 
@@ -2578,6 +2617,48 @@ If this is still really annoying, and you have a good reason not to have a
 `.tern-project` file, create an empty `.tern-config` file in your home directory
 and YCM will stop complaining.
 
+### When I run install.py I get a LINK error saying `fatal error LNK1104: cannot open file '<path_to_vim_folder>\bundle\YouCompleteMe\third_party\ycmd\ycm_client_support.pyd'`
+
+Be sure to have closed all vim instances before you build YouCompleteMe.
+
+### When I start vim I get a runtime error saying `R6034 An application has made an attempt to load the C runtime library incorrectly.`
+
+[CMake and other things seem to screw up the PATH with their own msvcrXX.dll versions.][identify-R6034-cause]
+Add the following to the very top of your vimrc to remove these entries from the path.
+
+```python
+python << EOF
+import os
+import re
+path = os.environ['PATH'].split(';')
+
+def contains_msvcr_lib(folder):
+    try:
+        for item in os.listdir(folder):
+            if re.match(r'msvcr\d+\.dll', item):
+                return True
+    except:
+        pass
+    return False
+
+path = [folder for folder in path if not contains_msvcr_lib(folder)]
+os.environ['PATH'] = ';'.join(path)
+EOF
+```
+
+### I hear that YCM only supports Python 2, is that true?
+
+No. The Vim client and the [ycmd][] server only run under Python 2 but if you
+work on a Python 3 project then just set the `g:ycm_python_binary_path` to the
+Python interpreter you use for your project and you will get completions for
+that version of Python.
+
+Contributor Code of Conduct
+---------------------------
+
+Please note that this project is released with a [Contributor Code of
+Conduct][ccoc]. By participating in this project you agree to abide by its
+terms.
 
 
 Contact
@@ -2593,6 +2674,7 @@ The latest version of the plugin is available at
 <http://valloric.github.io/YouCompleteMe/>.
 
 The author's homepage is <http://val.markovic.io>.
+
 
 License
 -------
@@ -2653,3 +2735,7 @@ This software is licensed under the [GPL v3 license][gpl].
 [racer]: https://github.com/phildawes/racer
 [rust-install]: https://www.rust-lang.org/
 [rust-src]: https://www.rust-lang.org/downloads.html
+[add-msbuild-to-path]: http://stackoverflow.com/questions/6319274/how-do-i-run-msbuild-from-the-command-line-using-windows-sdk-7-1
+[identify-R6034-cause]: http://stackoverflow.com/questions/14552348/runtime-error-r6034-in-embedded-python-application/34696022
+[ccoc]: https://github.com/Valloric/YouCompleteMe/blob/master/CODE_OF_CONDUCT.md
+[JediHTTP]: https://github.com/vheon/JediHTTP
