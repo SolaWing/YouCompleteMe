@@ -29,13 +29,28 @@ let s:cursor_moved = 0
 let s:moved_vertically_in_insert_mode = 0
 let s:previous_num_chars_on_current_line = strlen( getline('.') )
 
-let s:diagnostic_ui_filetypes = {
-      \ 'cpp': 1,
-      \ 'cs': 1,
-      \ 'c': 1,
-      \ 'objc': 1,
-      \ 'objcpp': 1,
-      \ }
+
+function! s:UsingPython2()
+  " I'm willing to bet quite a bit that sooner or later, somebody will ask us to
+  " make it configurable which version of Python we use.
+  if has('python')
+    return 1
+  endif
+  return 0
+endfunction
+
+
+let s:using_python2 = s:UsingPython2()
+let s:python_until_eof = s:using_python2 ? "python << EOF" : "python3 << EOF"
+let s:python_command = s:using_python2 ? "py " : "py3 "
+
+
+function! s:Pyeval( eval_string )
+  if s:using_python2
+    return pyeval( a:eval_string )
+  endif
+  return py3eval( a:eval_string )
+endfunction
 
 
 function! youcompleteme#Enable()
@@ -128,48 +143,54 @@ endfunction
 
 
 function! youcompleteme#GetErrorCount()
-  return pyeval( 'ycm_state.GetErrorCount()' )
+  return s:Pyeval( 'ycm_state.GetErrorCount()' )
 endfunction
 
 
 function! youcompleteme#GetWarningCount()
-  return pyeval( 'ycm_state.GetWarningCount()' )
+  return s:Pyeval( 'ycm_state.GetWarningCount()' )
 endfunction
 
 
 function! s:SetUpPython() abort
-python << EOF
-import sys
-import vim
+  exec s:python_until_eof
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import division
+from __future__ import absolute_import
+
 import os
-import subprocess
+import sys
+import traceback
+import vim
 
+# Add python sources folder to the system path.
 script_folder = vim.eval( 's:script_folder_path' )
-sys.path.insert( 0, os.path.join( script_folder, '../python' ) )
-sys.path.insert( 0, os.path.join( script_folder, '../third_party/ycmd' ) )
-from ycmd import utils
-utils.AddNearestThirdPartyFoldersToSysPath( script_folder )
+sys.path.insert( 0, os.path.join( script_folder, '..', 'python' ) )
 
-# We need to import ycmd's third_party folders as well since we import and
-# use ycmd code in the client.
-utils.AddNearestThirdPartyFoldersToSysPath( utils.__file__ )
-from ycm import base
-base.LoadJsonDefaultsIntoVim()
-from ycmd import user_options_store
-user_options_store.SetAll( base.BuildServerConf() )
-from ycm import paths, vimsupport
+from ycm.setup import SetUpSystemPaths, SetUpYCM
 
-popen_args = [ paths.PathToPythonInterpreter(),
-               paths.PathToCheckCoreVersion() ]
+# We enclose this code in a try/except block to avoid backtraces in Vim.
+try:
+  SetUpSystemPaths()
 
-if utils.SafePopen( popen_args ).wait() == 2:
-  vimsupport.PostVimMessage(
-    'YouCompleteMe unavailable: YCM support libs too old, PLEASE RECOMPILE' )
+  # Import the modules used in this file.
+  from ycm import base, vimsupport
+
+  ycm_state = SetUpYCM()
+except Exception as error:
+  # We don't use PostVimMessage or EchoText from the vimsupport module because
+  # importing this module may fail.
+  vim.command( 'redraw | echohl WarningMsg' )
+  for line in traceback.format_exc().splitlines():
+    vim.command( "echom '{0}'".format( line.replace( "'", "''" ) ) )
+
+  vim.command( "echo 'YouCompleteMe unavailable: {0}'"
+               .format( str( error ).replace( "'", "''" ) ) )
+  vim.command( 'echohl None' )
   vim.command( 'return 0' )
-
-from ycm.youcompleteme import YouCompleteMe
-ycm_state = YouCompleteMe( user_options_store.GetAll() )
-vim.command( 'return 1' )
+else:
+  vim.command( 'return 1' )
 EOF
 endfunction
 
@@ -313,11 +334,6 @@ function! s:TurnOffSyntasticForCFamily()
 endfunction
 
 
-function! s:DiagnosticUiSupportedForCurrentFiletype()
-  return get( s:diagnostic_ui_filetypes, &filetype, 0 )
-endfunction
-
-
 function! s:AllowedToCompleteInCurrentFile()
   if empty( &filetype ) ||
         \ getbufvar( winbufnr( winnr() ), "&buftype" ) ==# 'nofile' ||
@@ -357,7 +373,7 @@ function! s:SetUpCpoptions()
 
   " This prevents the display of "Pattern not found" & similar messages during
   " completion. This is only available since Vim 7.4.314
-  if pyeval( 'vimsupport.VimVersionAtLeast("7.4.314")' )
+  if s:Pyeval( 'vimsupport.VimVersionAtLeast("7.4.314")' )
     set shortmess+=c
   endif
 endfunction
@@ -400,16 +416,16 @@ endfunction
 
 
 function! s:OnVimLeave()
-  py ycm_state.OnVimLeave()
+  exec s:python_command "ycm_state.OnVimLeave()"
 endfunction
 
 function! youcompleteme#OnCompleteAction()
-  py ycm_state.OnCompleteAction()
+  exec s:python_command "ycm_state.OnCompleteAction()"
   return ""
 endfunction
 
 function! s:OnCompleteDone()
-  py ycm_state.OnCompleteDone()
+  exec s:python_command "ycm_state.OnCompleteDone()"
 endfunction
 
 
@@ -442,7 +458,7 @@ function! s:OnBufferVisit()
     call s:SetOmnicompleteFunc()
   endif
 
-  py ycm_state.OnBufferVisit()
+  exec s:python_command "ycm_state.OnBufferVisit()"
   call s:OnFileReadyToParse()
 endfunction
 
@@ -452,7 +468,8 @@ function! s:OnBufferUnload( deleted_buffer_file )
     return
   endif
 
-  py ycm_state.OnBufferUnload( vim.eval( 'a:deleted_buffer_file' ) )
+  exec s:python_command "ycm_state.OnBufferUnload("
+        \ "vim.eval( 'a:deleted_buffer_file' ) )"
 endfunction
 
 
@@ -471,15 +488,15 @@ function! s:OnFileReadyToParse()
   " happen for special buffers.
   call s:SetUpYcmChangedTick()
 
-  " Order is important here; we need to extract any done diagnostics before
+  " Order is important here; we need to extract any information before
   " reparsing the file again. If we sent the new parse request first, then
   " the response would always be pending when we called
-  " UpdateDiagnosticNotifications.
-  call s:UpdateDiagnosticNotifications()
+  " HandleFileParseRequest.
+  exec s:python_command "ycm_state.HandleFileParseRequest()"
 
   let buffer_changed = b:changedtick != b:ycm_changedtick.file_ready_to_parse
   if buffer_changed
-    py ycm_state.OnFileReadyToParse()
+    exec s:python_command "ycm_state.OnFileReadyToParse()"
     let b:ycm_changedtick.file_ready_to_parse = b:changedtick
   endif
 endfunction
@@ -492,7 +509,7 @@ endfunction
 
 
 function! s:SetOmnicompleteFunc()
-  if pyeval( 'ycm_state.NativeFiletypeCompletionUsable()' )
+  if s:Pyeval( 'ycm_state.NativeFiletypeCompletionUsable()' )
     let &omnifunc = 'youcompleteme#OmniComplete'
     let &l:omnifunc = 'youcompleteme#OmniComplete'
 
@@ -510,7 +527,7 @@ function! s:OnCursorMovedInsertMode()
     return
   endif
 
-  py ycm_state.OnCursorMoved()
+  exec s:python_command "ycm_state.OnCursorMoved()"
   call s:UpdateCursorMoved()
 
   " Basically, we need to only trigger the completion menu when the user has
@@ -536,7 +553,7 @@ function! s:OnCursorMovedInsertMode()
   " We have to make sure we correctly leave omnifunc mode even when the user
   " inserts something like a "operator[]" candidate string which fails
   " CurrentIdentifierFinished check.
-  if s:omnifunc_mode && !pyeval( 'base.LastEnteredCharIsIdentifierChar()')
+  if s:omnifunc_mode && !s:Pyeval( 'base.LastEnteredCharIsIdentifierChar()')
     let s:omnifunc_mode = 0
   endif
 endfunction
@@ -548,7 +565,7 @@ function! s:OnCursorMovedNormalMode()
   endif
 
   call s:OnFileReadyToParse()
-  py ycm_state.OnCursorMoved()
+  exec s:python_command "ycm_state.OnCursorMoved()"
 endfunction
 
 
@@ -559,7 +576,7 @@ function! s:OnInsertLeave()
 
   let s:omnifunc_mode = 0
   call s:OnFileReadyToParse()
-  py ycm_state.OnInsertLeave()
+  exec s:python_command "ycm_state.OnInsertLeave()"
   if g:ycm_autoclose_preview_window_after_completion ||
         \ g:ycm_autoclose_preview_window_after_insertion
     call s:ClosePreviewWindowIfNeeded()
@@ -622,24 +639,11 @@ function! s:ClosePreviewWindowIfNeeded()
 endfunction
 
 
-function! s:UpdateDiagnosticNotifications()
-  let should_display_diagnostics = g:ycm_show_diagnostics_ui &&
-        \ s:DiagnosticUiSupportedForCurrentFiletype()
-
-  if !should_display_diagnostics
-    py ycm_state.ValidateParseRequest()
-    return
-  endif
-
-  py ycm_state.UpdateDiagnosticInterface()
-endfunction
-
-
 function! s:IdentifierFinishedOperations()
-  if !pyeval( 'base.CurrentIdentifierFinished()' )
+  if !s:Pyeval( 'base.CurrentIdentifierFinished()' )
     return
   endif
-  py ycm_state.OnCurrentIdentifierFinished()
+  exec s:python_command "ycm_state.OnCurrentIdentifierFinished()"
   let s:omnifunc_mode = 0
 endfunction
 
@@ -648,7 +652,8 @@ endfunction
 function! s:InsideCommentOrString()
   " Has to be col('.') -1 because col('.') doesn't exist at this point. We are
   " in insert mode when this func is called.
-  let syntax_group = synIDattr( synIDtrans( synID( line( '.' ), col( '.' ) - 1, 1 ) ), 'name')
+  let syntax_group = synIDattr(
+        \ synIDtrans( synID( line( '.' ), col( '.' ) - 1, 1 ) ), 'name')
 
   if stridx(syntax_group, 'Comment') > -1
     return 1
@@ -677,7 +682,7 @@ endfunction
 
 
 function! s:OnBlankLine()
-  return pyeval( 'not vim.current.line or vim.current.line.isspace()' )
+  return s:Pyeval( 'not vim.current.line or vim.current.line.isspace()' )
 endfunction
 
 
@@ -730,7 +735,7 @@ function! s:InvokeCompletion()
 endfunction
 
 
-python << EOF
+exec s:python_until_eof
 def GetCompletionsInner():
   request = ycm_state.GetCurrentCompletionRequest()
   request.Start()
@@ -744,8 +749,8 @@ EOF
 
 
 function! s:GetCompletions()
-  py results = GetCompletionsInner()
-  let results = pyeval( 'results' )
+  exec s:python_command "results = GetCompletionsInner()"
+  let results = s:Pyeval( 'results' )
   return results
 endfunction
 
@@ -770,11 +775,11 @@ function! youcompleteme#Complete( findstart, base )
       return -2
     endif
 
-    if !pyeval( 'ycm_state.IsServerAlive()' )
+    if !s:Pyeval( 'ycm_state.IsServerAlive()' )
       return -2
     endif
-    py ycm_state.CreateCompletionRequest()
-    return pyeval( 'base.CompletionStartColumn()' )
+    exec s:python_command "ycm_state.CreateCompletionRequest()"
+    return s:Pyeval( 'base.CompletionStartColumn()' )
   else
     return s:GetCompletions()
   endif
@@ -783,12 +788,13 @@ endfunction
 
 function! youcompleteme#OmniComplete( findstart, base )
   if a:findstart
-    if !pyeval( 'ycm_state.IsServerAlive()' )
+    if !s:Pyeval( 'ycm_state.IsServerAlive()' )
       return -2
     endif
     let s:omnifunc_mode = 1
-    py ycm_state.CreateCompletionRequest( force_semantic = True )
-    return pyeval( 'base.CompletionStartColumn()' )
+    exec s:python_command "ycm_state.CreateCompletionRequest("
+          \ "force_semantic = True )"
+    return s:Pyeval( 'base.CompletionStartColumn()' )
   else
     return s:GetCompletions()
   endif
@@ -796,23 +802,23 @@ endfunction
 
 
 function! youcompleteme#ServerPid()
-  return pyeval( 'ycm_state.ServerPid()' )
+  return s:Pyeval( 'ycm_state.ServerPid()' )
 endfunction
 
 
 function! s:RestartServer()
-  py ycm_state.RestartServer()
+  exec s:python_command "ycm_state.RestartServer()"
 endfunction
 
 
 function! s:ShowDetailedDiagnostic()
-  py ycm_state.ShowDetailedDiagnostic()
+  exec s:python_command "ycm_state.ShowDetailedDiagnostic()"
 endfunction
 
 
 function! s:DebugInfo()
   echom "Printing YouCompleteMe debug information..."
-  let debug_info = pyeval( 'ycm_state.DebugInfo()' )
+  let debug_info = s:Pyeval( 'ycm_state.DebugInfo()' )
   for line in split( debug_info, "\n" )
     echom '-- ' . line
   endfor
@@ -822,8 +828,9 @@ endfunction
 function! s:ToggleLogs(...)
   let stderr = a:0 == 0 || a:1 !=? 'stdout'
   let stdout = a:0 == 0 || a:1 !=? 'stderr'
-  py ycm_state.ToggleLogs( stdout = vimsupport.GetBoolValue( 'l:stdout' ),
-                         \ stderr = vimsupport.GetBoolValue( 'l:stderr' ) )
+  exec s:python_command "ycm_state.ToggleLogs("
+        \ "stdout = vimsupport.GetBoolValue( 'l:stdout' ),"
+        \ "stderr = vimsupport.GetBoolValue( 'l:stderr' ) )"
 endfunction
 
 
@@ -845,8 +852,8 @@ function! s:CompleterCommand(...)
     let arguments = arguments[1:]
   endif
 
-  py ycm_state.SendCommandRequest( vim.eval( 'l:arguments' ),
-        \                          vim.eval( 'l:completer' ) )
+  exec s:python_command "ycm_state.SendCommandRequest("
+        \ "vim.eval( 'l:arguments' ), vim.eval( 'l:completer' ) ) "
 endfunction
 
 
@@ -866,29 +873,22 @@ endfunction
 
 
 function! youcompleteme#SubCommandsComplete( arglead, cmdline, cursorpos )
-  return join( pyeval( 'ycm_state.GetDefinedSubcommands()' ),
+  return join( s:Pyeval( 'ycm_state.GetDefinedSubcommands()' ),
     \ "\n")
 endfunction
 
 
 function! s:ForceCompile()
-  if !pyeval( 'ycm_state.NativeFiletypeCompletionUsable()' )
+  if !s:Pyeval( 'ycm_state.NativeFiletypeCompletionUsable()' )
     echom "Native filetype completion not supported for current file, "
           \ . "cannot force recompilation."
     return 0
   endif
 
   echom "Forcing compilation, this will block Vim until done."
-  py ycm_state.OnFileReadyToParse()
-  while 1
-    let diagnostics_ready = pyeval(
-          \ 'ycm_state.DiagnosticsForCurrentFileReady()' )
-    if diagnostics_ready
-      break
-    endif
+  exec s:python_command "ycm_state.OnFileReadyToParse()"
+  exec s:python_command "ycm_state.HandleFileParseRequest( True )"
 
-    sleep 100m
-  endwhile
   return 1
 endfunction
 
@@ -898,8 +898,6 @@ function! s:ForceCompileAndDiagnostics()
   if !compilation_succeeded
     return
   endif
-
-  call s:UpdateDiagnosticNotifications()
   echom "Diagnostics refreshed."
 endfunction
 
@@ -910,11 +908,7 @@ function! s:ShowDiagnostics()
     return
   endif
 
-  let diags = pyeval(
-        \ 'ycm_state.GetDiagnosticsFromStoredRequest( qflist_format = True )' )
-  if !empty( diags )
-    call setloclist( 0, diags )
-
+  if s:Pyeval( 'ycm_state.PopulateLocationListWithLatestDiagnostics()' )
     if g:ycm_open_loclist_on_ycm_diags
       lopen
     endif
