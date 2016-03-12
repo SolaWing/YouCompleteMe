@@ -107,13 +107,13 @@ class YouCompleteMe( object ):
     self._complete_done_hooks = {
       'cs': lambda self: self._OnCompleteDone_Csharp()
     }
-    clang_param_expand = lambda(self): self._OnCompleteDone_Clang()
+    clang_param_expand = lambda self: self._OnCompleteDone_Clang()
     self._complete_action_hooks = {
         'c':      clang_param_expand,
         'cpp':    clang_param_expand,
         'objc':   clang_param_expand,
         'objcpp': clang_param_expand,
-        '*':      lambda(self): self._OnCompleteDone_UltiSnip(),
+        '*':      lambda self: self._OnCompleteDone_UltiSnip(),
     }
 
   def _SetupServer( self ):
@@ -488,8 +488,8 @@ class YouCompleteMe( object ):
       menu_text = completion.get(u"menu_text")
       if not menu_text: return
 
-      m = re.search(ur'%s((%s)\(\s*([^)]+?)\s*\)|\w+)'%(
-            re.escape(completion[u"insertion_text"]),ur'(?:\^[^(]*)?'),
+      m = re.search(r'%s((%s)\(\s*([^)]+?)\s*\)|\w+)'%(
+            re.escape(completion[u"insertion_text"]),r'(?:\^[^(]*)?'),
                     menu_text)
       if m:
           whole = m.group(1)
@@ -498,13 +498,13 @@ class YouCompleteMe( object ):
               def replaceParam(match):
                   count[0] += 1
                   return u"${%d:%s}"%(count[0], match.group(0))
-              params = re.sub(ur'[^\s,][^,]*', replaceParam, m.group(3))
+              params = re.sub(r'[^\s,][^,]*', replaceParam, m.group(3))
               whole = "".join( (menu_text[m.start(1):m.start(3)],
                                 params,
                                 menu_text[m.end(3):m.end(1)]) )
 
-          anon = "".join( (ur'${1:', whole,
-                           u"\\{\n\t$0\n\\}}" if m.group(2) else ur'}') )
+          anon = "".join( (r'${1:', whole,
+                           u"\\{\n\t$0\n\\}}" if m.group(2) else u'}') )
           UltiSnips_Manager.expand_anon(anon)
           return True
 
@@ -714,7 +714,7 @@ class YouCompleteMe( object ):
     def BuildExtraConfData( extra_conf_vim_data ):
         return dict( ( key, vimsupport.VimExpressionToPythonType( expr ) )
                     for key, expr in
-                    map(lambda( i ):
+                    map(lambda i:
                             ( i, i ) if isinstance( i, basestring ) else
                             ( i[0], i[1] ),
                         extra_conf_vim_data ) )
