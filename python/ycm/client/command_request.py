@@ -24,7 +24,6 @@ standard_library.install_aliases()
 from builtins import *  # noqa
 
 from requests.exceptions import ReadTimeout
-import vim
 
 from ycmd.responses import ServerError
 from ycm.client.base_request import ( BaseRequest, BuildRequestData,
@@ -93,8 +92,9 @@ class CommandRequest( BaseRequest ):
   def _HandleGotoResponse( self ):
     if isinstance( self._response, list ):
       vimsupport.SetQuickFixList(
-              [ _BuildQfListItem( x ) for x in self._response ] )
-      vim.eval( 'youcompleteme#OpenGoToList()' )
+        [ _BuildQfListItem( x ) for x in self._response ],
+        focus = True,
+        autoclose = True )
     else:
       vimsupport.JumpToLocation( self._response[ 'filepath' ],
                                  self._response[ 'line_num' ],
@@ -105,9 +105,19 @@ class CommandRequest( BaseRequest ):
     if not len( self._response[ 'fixits' ] ):
       vimsupport.EchoText( "No fixits found for current line" )
     else:
-      chunks = self._response[ 'fixits' ][ 0 ][ 'chunks' ]
       try:
-        vimsupport.ReplaceChunks( chunks )
+        fixit_index = 0
+
+        # When there are multiple fixit suggestions, present them as a list to
+        # the user hand have her choose which one to apply.
+        if len( self._response[ 'fixits' ] ) > 1:
+          fixit_index = vimsupport.SelectFromList(
+            "Multiple FixIt suggestions are available at this location. "
+            "Which one would you like to apply?",
+            [ fixit[ 'text' ] for fixit in self._response[ 'fixits' ] ] )
+
+        vimsupport.ReplaceChunks(
+          self._response[ 'fixits' ][ fixit_index ][ 'chunks' ] )
       except RuntimeError as e:
         vimsupport.PostMultiLineNotice( str( e ) )
 
