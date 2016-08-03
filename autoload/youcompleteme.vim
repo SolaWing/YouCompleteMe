@@ -33,10 +33,10 @@ let s:previous_num_chars_on_current_line = strlen( getline('.') )
 function! s:UsingPython2()
   " I'm willing to bet quite a bit that sooner or later, somebody will ask us to
   " make it configurable which version of Python we use.
-  if has('python')
-    return 1
+  if has('python3')
+    return 0
   endif
-  return 0
+  return 1
 endfunction
 
 

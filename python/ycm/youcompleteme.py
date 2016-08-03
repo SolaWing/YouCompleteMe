@@ -361,7 +361,7 @@ class YouCompleteMe( object ):
   def GetCompleteActionHooks(self):
     filetypes = vimsupport.CurrentFiletypes()
     filetypes.append("*")
-    for key, value in self._complete_action_hooks.iteritems():
+    for key, value in iteritems(self._complete_action_hooks):
       if key in filetypes:
         yield value
 
@@ -754,8 +754,8 @@ class YouCompleteMe( object ):
         return dict( ( key, vimsupport.VimExpressionToPythonType( expr ) )
                     for key, expr in
                     map(lambda i:
-                            ( i, i ) if isinstance( i, basestring ) else
-                            ( i[0], i[1] ),
+                            ( i[0], i[1] ) if isinstance( i, list ) else
+                            ( i, i ),
                         extra_conf_vim_data ) )
 
     extra_conf_vim_data = self._user_options[ 'extra_conf_vim_data' ]

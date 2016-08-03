@@ -114,8 +114,7 @@ def GetBufferOption( buffer_object, option ):
 
 
 def BufferModified( buffer_object ):
-  # return bool( int( GetBufferOption( buffer_object, 'mod' ) ) )
-  return buffer_object.options['mod']
+  return bool( int( GetBufferOption( buffer_object, 'mod' ) ) )
 
 
 def GetUnsavedAndCurrentBufferData():
@@ -574,7 +573,7 @@ def CurrentFiletypes():
 def FiletypesForBuffer( buffer_object ):
   # NOTE: Getting &ft for other buffers only works when the buffer has been
   # visited by the user at least once, which is true for modified buffers
-  return GetBufferOption( buffer_object, 'ft' ).split( '.' )
+  return ToUnicode(GetBufferOption( buffer_object, 'ft' )).split( '.' )
 
 
 def VariableExists( variable ):
