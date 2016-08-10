@@ -207,7 +207,8 @@ def findAllHeaderDirectory(rootDirectory):
     if headerDirs:
         return headerDirs
 
-    output = subprocess.check_output(['find', '-H', rootDirectory, '-name', '*.h'])
+    output = subprocess.check_output(['find', '-H', rootDirectory, '-name', '*.h'],
+                                     universal_newlines=True)
     headers = output.splitlines()
     headerDirs = set()
     frameworks = set()
@@ -266,15 +267,18 @@ def FlagsForFile( filename, **kwargs ):
     except ValueError:
       pass
   else:
+   #  with open("/tmp/flags", "a") as out:
     # relative_to = DirectoryOfThisScript()
     # final_flags = MakeRelativePathsInFlagsAbsolute( flags, relative_to )
     final_flags = flags[:] #!! final_flags = []
 
     # find all headers in file project
     project_root, pchFile = findProjectRootAndPchFile(filename)
+    #  print(project_root, pchFile, file=out)
     if project_root:
         try:
             headers, frameworks = findAllHeaderDirectory(project_root)
+            #  print("header&framework:\n",headers, frameworks, file=out)
             if headers:
                 final_flags += ['-I'+ escapeSpace(s) for s in headers]
             if frameworks:
@@ -283,7 +287,7 @@ def FlagsForFile( filename, **kwargs ):
                 final_flags.append('-include'+escapeSpace(pchFile))
         except Exception as e:
             import logging
-            logging.error(e)
+            logging.exception('headers append fail!')
 
     if filename.endswith('.m') or filename.endswith('.c'):
         final_flags.append('-std=gnu99');
@@ -294,6 +298,8 @@ def FlagsForFile( filename, **kwargs ):
         final_flags += kwargs['client_data']['ycm_additional_flags']
     except Exception as e:
         pass
+
+    #  print("final_flags:\n", final_flags, file=out)
 
   return {
     'flags': final_flags,
