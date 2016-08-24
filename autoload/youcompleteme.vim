@@ -232,7 +232,7 @@ function! s:SetUpKeyMappings()
 
     " <c-x><c-o> trigger omni completion, <c-p> deselects the first completion
     " candidate that vim selects by default
-    silent! exe 'inoremap <unique> ' . invoke_key .  ' <C-X><C-O><C-P>'
+    silent! exe 'inoremap <unique><expr> ' . invoke_key .  " <SID>InvokeOmni()"
   endif
 
   if !empty( g:ycm_key_detailed_diagnostics )
@@ -246,6 +246,10 @@ function! s:SetUpKeyMappings()
   endif
 endfunction
 
+function! s:InvokeOmni()
+    let s:omnifunc_mode = 1
+    return "\<C-X>\<C-U>\<C-P>"
+endfunction
 
 function! s:SetUpSigns()
   " We try to ensure backwards compatibility with Syntastic if the user has

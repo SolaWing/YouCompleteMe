@@ -234,6 +234,8 @@ class YouCompleteMe( object ):
     # if buffer is very large, may delay response and cause flick
     # if response speed less than one frame, will flick
     request_data = BuildRequestData()
+    if force_semantic:
+      request_data[ 'force_semantic' ] = True
     if ( not self.NativeFiletypeCompletionAvailable() and
          self.CurrentFiletypeCompletionEnabled() ):
       wrapped_request_data = RequestWrap( request_data )
@@ -245,8 +247,6 @@ class YouCompleteMe( object ):
     request_data[ 'working_dir' ] = os.getcwd()
 
     self._AddExtraConfDataIfNeeded( request_data )
-    if force_semantic:
-      request_data[ 'force_semantic' ] = True
     self._latest_completion_request = CompletionRequest( request_data )
     return self._latest_completion_request
 
