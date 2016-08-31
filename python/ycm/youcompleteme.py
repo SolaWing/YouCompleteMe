@@ -525,27 +525,22 @@ class YouCompleteMe( object ):
       if not completions: return
 
       completion = completions[0]
-      menu_text = completion.get(u"menu_text")
-      if not menu_text: return
+      text = completion.get(u"insertion_text")
+      if not text: return
 
-      m = re.search(r'%s((%s)\(\s*([^)]+?)\s*\)|\w+)'%(
-            re.escape(completion[u"insertion_text"]),r'(?:\^[^(]*)?'),
-                    menu_text)
-      if m:
-          whole = m.group(1)
-          if m.group(3): # match paren
-              count = [1]
-              def replaceParam(match):
-                  count[0] += 1
-                  return u"${%d:%s}"%(count[0], match.group(0))
-              params = re.sub(r'[^\s,][^,]*', replaceParam, m.group(3))
-              whole = "".join( (menu_text[m.start(1):m.start(3)],
-                                params,
-                                menu_text[m.end(3):m.end(1)]) )
-
-          anon = "".join( (r'${1:', whole,
-                           u"\\{\n\t$0\n\\}}" if m.group(2) else u'}') )
-          UltiSnips_Manager.expand_anon(anon)
+      count = [0]
+      ocblockPattern = re.compile(r"(\^[^(]*\([^)]*\))")
+      def replaceParam(match):
+          count[0] += 1
+          expand = match.group(1)
+          m = ocblockPattern.search(expand)
+          if m:
+              count[0] += 1
+              return u"${%d:%s\\{$%d\\}}"%(count[0] - 1, m.group(1), count[0])
+          return u"${%d:%s}"%(count[0], match.group(1))
+      templ, n = re.subn(r'<#(.+?)#>', replaceParam, text)
+      if n > 0:
+          UltiSnips_Manager.expand_anon(templ, text, options='i')
           return True
 
   def _OnCompleteDone_Csharp( self ):
