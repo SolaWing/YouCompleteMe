@@ -525,6 +525,8 @@ class YouCompleteMe( object ):
       if not completions: return
 
       completion = completions[0]
+      templ = completion.get(u"extra_data",dict()).get(u"template")
+      if not templ: return
       text = completion.get(u"insertion_text")
       if not text: return
 
@@ -538,8 +540,9 @@ class YouCompleteMe( object ):
               count[0] += 1
               return u"${%d:%s\\{$%d\\}}"%(count[0] - 1, m.group(1), count[0])
           return u"${%d:%s}"%(count[0], match.group(1))
-      templ, n = re.subn(r'<#(.+?)#>', replaceParam, text)
-      if n > 0:
+      templ, n = re.subn(r'<#(.+?)#>', replaceParam, templ)
+      #  print ( "anon:", templ, text )
+      if templ != text:
           UltiSnips_Manager.expand_anon(templ, text, options='i')
           return True
 
