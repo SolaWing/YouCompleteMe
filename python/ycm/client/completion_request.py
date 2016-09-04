@@ -20,6 +20,7 @@ from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
 from future import standard_library
+from concurrent.futures import TimeoutError as FutureTimeoutError
 standard_library.install_aliases()
 from builtins import *  # noqa
 
@@ -31,7 +32,7 @@ from ycm.client.base_request import ( BaseRequest, JsonFromFuture,
                                       MakeServerException )
 from ycmd.responses import ServerError
 
-TIMEOUT_SECONDS = 0.5
+TIMEOUT_SECONDS = 10
 
 
 class CompletionRequest( BaseRequest ):
@@ -49,6 +50,14 @@ class CompletionRequest( BaseRequest ):
   def Done( self ):
     return self._response_future.done()
 
+  def Wait( self , timeout = None):
+      """return True or False when timeout"""
+      try:
+          # use ressult with httpconnection timeout will raise error, why?
+          self._response_future.exception(timeout)
+          return True
+      except FutureTimeoutError:
+          return False
 
   def RawResponse( self ):
     if not self._response_future:

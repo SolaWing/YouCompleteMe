@@ -738,7 +738,8 @@ exec s:python_until_eof
 def GetCompletionsInner():
   request = ycm_state.GetCurrentCompletionRequest()
   request.Start()
-  while not request.Done():
+
+  while request.Wait(0.01) is False:
     if bool( int( vim.eval( 'complete_check()' ) ) ):
       return { 'words' : [], 'refresh' : 'always'}
 
