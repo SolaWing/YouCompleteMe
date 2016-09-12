@@ -39,6 +39,8 @@ class OmniCompletionRequest( CompletionRequest ):
   def Done( self ):
     return True
 
+  def Wait( self , timeout = None):
+      return True
 
   def RawResponse( self ):
     return _ConvertVimDatasToCompletionDatas( self._results )

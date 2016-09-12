@@ -56,6 +56,19 @@ class BaseRequest( object ):
   def Done( self ):
     return True
 
+  def Wait( self , timeout = None):
+      import time
+      if timeout:
+          duration = 0;
+          while not self.Done():
+              time.sleep(0.001);
+              duration += 0.001;
+              if duration > timeout: return False;
+      else:
+          while not self.Done():
+              time.sleep(0.001);
+      return True
+
 
   def Response( self ):
     return {}
