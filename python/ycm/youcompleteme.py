@@ -32,7 +32,7 @@ import signal
 import base64
 from subprocess import PIPE
 from tempfile import NamedTemporaryFile
-from ycm import paths, vimsupport
+from ycm import base, paths, vimsupport
 from ycmd import utils
 from ycmd import server_utils
 from ycmd.request_wrap import RequestWrap
@@ -50,12 +50,6 @@ from ycm.client.omni_completion_request import OmniCompletionRequest
 from ycm.client.event_notification import ( SendEventNotificationAsync,
                                             EventNotification )
 from ycm.client.shutdown_request import SendShutdownRequest
-
-try:
-  from UltiSnips import UltiSnips_Manager
-  USE_ULTISNIPS_DATA = True
-except ImportError:
-  USE_ULTISNIPS_DATA = False
 
 
 def PatchNoProxy():
@@ -251,6 +245,17 @@ class YouCompleteMe( object ):
     return self._latest_completion_request
 
 
+  def GetCompletions( self ):
+    request = self.GetCurrentCompletionRequest()
+    request.Start()
+    while request.Wait(0.01) is False:
+      if bool( int( vim.eval( 'complete_check()' ) ) ):
+        return { 'words' : [], 'refresh' : 'always'}
+
+    results = base.AdjustCandidateInsertionText( request.Response() )
+    return { 'words' : results, 'refresh' : 'always' }
+
+
   def SendCommandRequest( self, arguments, completer ):
     if self.IsServerAlive():
       return SendCommandRequest( arguments, completer )
@@ -330,7 +335,7 @@ class YouCompleteMe( object ):
     if not self.IsServerAlive():
       return
     extra_data = {}
-    _AddUltiSnipsDataIfNeeded( extra_data )
+    self._AddUltiSnipsDataIfNeeded( extra_data )
     SendEventNotificationAsync( 'BufferVisit', extra_data )
 
 
@@ -505,7 +510,7 @@ class YouCompleteMe( object ):
     return False
 
   def _OnCompleteDone_UltiSnip(self):
-      if not USE_ULTISNIPS_DATA: return
+      if not vimsupport.VariableExists('*UltiSnips#ExpandSnippet'): return
 
       completions = self.GetCompletionsUserMayHaveCompleted()
       if not completions: return
@@ -519,7 +524,7 @@ class YouCompleteMe( object ):
       return True
 
   def _OnCompleteDone_Clang(self):
-      if not USE_ULTISNIPS_DATA: return
+      if not vimsupport.VariableExists('*UltiSnips#Anon'): return
 
       completions = self.GetCompletionsUserMayHaveCompleted()
       if not completions: return
@@ -543,7 +548,8 @@ class YouCompleteMe( object ):
       templ, n = re.subn(r'<#(.+?)#>', replaceParam, templ)
       #  print ( "anon:", templ, text )
       if templ != text:
-          UltiSnips_Manager.expand_anon(templ, text, options='i')
+          vim.eval("UltiSnips#Anon('{}', '{}', '', 'i')".format(
+              *map(vimsupport.EscapeForVim, (templ, text))))
           return True
 
   def _OnCompleteDone_Csharp( self ):
@@ -647,7 +653,8 @@ class YouCompleteMe( object ):
       debug_info = BaseRequest.PostDataToHandler( BuildRequestData(),
                                                   'detailed_diagnostic' )
       if 'message' in debug_info:
-        vimsupport.EchoText( debug_info[ 'message' ] )
+        vimsupport.PostVimMessage( debug_info[ 'message' ],
+                                   warning = False )
     except ServerError as e:
       vimsupport.PostVimMessage( str( e ) )
 
@@ -762,25 +769,16 @@ class YouCompleteMe( object ):
         extra_conf_vim_data )
 
 
-def _AddUltiSnipsDataIfNeeded( extra_data ):
-  if not USE_ULTISNIPS_DATA:
-    return
+  def _AddUltiSnipsDataIfNeeded( self, extra_data ):
+    # See :h UltiSnips#SnippetsInCurrentScope.
+    try:
+      vim.eval( 'UltiSnips#SnippetsInCurrentScope( 1 )' )
+    except vim.error:
+      return
 
-  try:
-    # Since UltiSnips may run in a different python interpreter (python 3) than
-    # YCM, UltiSnips_Manager singleton is not necessary the same as the one
-    # used by YCM. In particular, it means that we cannot rely on UltiSnips to
-    # set the current filetypes to the singleton. We need to do it ourself.
-    UltiSnips_Manager.reset_buffer_filetypes()
-    UltiSnips_Manager.add_buffer_filetypes(
-      vimsupport.GetVariableValue( '&filetype' ) )
-    rawsnips = UltiSnips_Manager._snips( '', True )
-  except:
-    return
-
-  # UltiSnips_Manager._snips() returns a class instance where:
-  # class.trigger - name of snippet trigger word ( e.g. defn or testcase )
-  # class.description - description of the snippet
-  extra_data[ 'ultisnips_snippets' ] = [
-    { 'trigger': x.trigger, 'description': x.description } for x in rawsnips
-  ]
+    snippets = vimsupport.GetVariableValue( 'g:current_ulti_dict_info' )
+    extra_data[ 'ultisnips_snippets' ] = [
+      { 'trigger': trigger,
+        'description': snippet[ 'description' ] }
+      for trigger, snippet in iteritems( snippets )
+    ]

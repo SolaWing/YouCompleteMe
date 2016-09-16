@@ -421,8 +421,8 @@ Vim installed by running `vim --version`.
 
 FreeBSD 10.x comes with clang compiler but not the libraries needed to install.
 
-    pkg install llvm35 boost-all boost-python-libs clang35
-    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/llvm35/lib/
+    pkg install llvm38 boost-all boost-python-libs clang38
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/llvm38/lib/
 
 Install YouCompleteMe with [Vundle][].
 
@@ -638,9 +638,9 @@ process.
 
   - C# support: install [Mono on non-Windows platforms][mono-install]. Navigate
     to `YouCompleteMe/third_party/ycmd/third_party/OmniSharpServer` and run
-    `msbuild` (Windows) or `xbuild` (other platforms, using Mono) depending on
-    your platform. On Windows, be sure that [the build utility `msbuild` is in
-    your PATH][add-msbuild-to-path].
+    `msbuild /property:Configuration=Release` on Windows. Replace `msbuild` by
+    `xbuild` on other platforms. On Windows, be sure that [the build utility
+    `msbuild` is in your PATH][add-msbuild-to-path].
 
   - Go support: install [Go][go-install] and add it to your path. Navigate to
     `YouCompleteMe/third_party/ycmd/third_party/gocode` and run `go build`.
@@ -2600,7 +2600,7 @@ with `--enable-framework`):
   `PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install {version}`
 
 
-## `install.py` says python must be compiled with `--enable-framework`. Wat?
+### `install.py` says python must be compiled with `--enable-framework`. Wat?
 
 See the previous answer for how to ensure your python is built to support
 dynamic modules.
@@ -2646,6 +2646,16 @@ options:
 g:UltiSnipsExpandTrigger
 g:UltiSnipsJumpForwardTrigger
 g:UltiSnipsJumpBackwardTrigger
+```
+
+### Snippets added with `:UltiSnipsAddFiletypes` do not appear in the popup menu
+
+For efficiency, YCM only fetches UltiSnips snippets in specific scenarios like
+visiting a buffer or setting its filetype. You can force YCM to retrieve them by
+manually triggering the `FileType` autocommand:
+
+```viml
+:doautocmd FileType
 ```
 
 ### Why isn't YCM just written in plain VimScript, FFS?
@@ -2814,9 +2824,9 @@ version of Python.
 
 ### On Windows I get `E887: Sorry, this command is disabled, the Python's site module could not be loaded`
 
-If you are running vim on Windows with Python 2.7.11, this is likely caused by 
+If you are running vim on Windows with Python 2.7.11, this is likely caused by
 a [bug][vim_win-python2.7.11-bug]. Follow this [workaround]
-[vim_win-python2.7.11-bug_workaround] or use a different version (Python 2.7.9 
+[vim_win-python2.7.11-bug_workaround] or use a different version (Python 2.7.12
 does not suffer from the bug).
 
 ### I can't complete python packages in a virtual environment.

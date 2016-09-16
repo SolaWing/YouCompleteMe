@@ -681,7 +681,7 @@ def _BuildLocations( start_line, start_column, end_line, end_column ):
 
 def ReplaceChunksInBuffer_SortedChunks_test():
   chunks = [
-    _BuildChunk( 1, 4, 1, 4, '('),
+    _BuildChunk( 1, 4, 1, 4, '(' ),
     _BuildChunk( 1, 11, 1, 11, ')' )
   ]
 
@@ -694,7 +694,7 @@ def ReplaceChunksInBuffer_SortedChunks_test():
 
 def ReplaceChunksInBuffer_UnsortedChunks_test():
   chunks = [
-    _BuildChunk( 1, 11, 1, 11, ')'),
+    _BuildChunk( 1, 11, 1, 11, ')' ),
     _BuildChunk( 1, 4, 1, 4, '(' )
   ]
 
@@ -736,18 +736,18 @@ class MockBuffer( object ):
 @patch( 'ycm.vimsupport.VariableExists', return_value = False )
 @patch( 'ycm.vimsupport.SetFittingHeightForCurrentWindow' )
 @patch( 'ycm.vimsupport.GetBufferNumberForFilename',
-        return_value=1,
-        new_callable=ExtendedMock )
+        return_value = 1,
+        new_callable = ExtendedMock )
 @patch( 'ycm.vimsupport.BufferIsVisible',
-        return_value=True,
-        new_callable=ExtendedMock )
+        return_value = True,
+        new_callable = ExtendedMock )
 @patch( 'ycm.vimsupport.OpenFilename' )
-@patch( 'ycm.vimsupport.EchoTextVimWidth', new_callable=ExtendedMock )
-@patch( 'vim.eval', new_callable=ExtendedMock )
-@patch( 'vim.command', new_callable=ExtendedMock )
+@patch( 'ycm.vimsupport.PostVimMessage', new_callable = ExtendedMock )
+@patch( 'vim.eval', new_callable = ExtendedMock )
+@patch( 'vim.command', new_callable = ExtendedMock )
 def ReplaceChunks_SingleFile_Open_test( vim_command,
                                         vim_eval,
-                                        echo_text_vim_width,
+                                        post_vim_message,
                                         open_filename,
                                         buffer_is_visible,
                                         get_buffer_number_for_filename,
@@ -810,31 +810,31 @@ def ReplaceChunks_SingleFile_Open_test( vim_command,
 
   # And it is ReplaceChunks that prints the message showing the number of
   # changes
-  echo_text_vim_width.assert_has_exact_calls( [
-      call( 'Applied 1 changes' ),
+  post_vim_message.assert_has_exact_calls( [
+      call( 'Applied 1 changes', warning = False ),
   ] )
 
 
 @patch( 'ycm.vimsupport.VariableExists', return_value = False )
 @patch( 'ycm.vimsupport.SetFittingHeightForCurrentWindow' )
 @patch( 'ycm.vimsupport.GetBufferNumberForFilename',
-        side_effect=[ -1, -1, 1 ],
-        new_callable=ExtendedMock )
+        side_effect = [ -1, -1, 1 ],
+        new_callable = ExtendedMock )
 @patch( 'ycm.vimsupport.BufferIsVisible',
-        side_effect=[ False, False, True ],
-        new_callable=ExtendedMock )
+        side_effect = [ False, False, True ],
+        new_callable = ExtendedMock )
 @patch( 'ycm.vimsupport.OpenFilename',
-        new_callable=ExtendedMock )
-@patch( 'ycm.vimsupport.EchoTextVimWidth', new_callable=ExtendedMock )
+        new_callable = ExtendedMock )
+@patch( 'ycm.vimsupport.PostVimMessage', new_callable = ExtendedMock )
 @patch( 'ycm.vimsupport.Confirm',
-        return_value=True,
-        new_callable=ExtendedMock )
-@patch( 'vim.eval', return_value=10, new_callable=ExtendedMock )
-@patch( 'vim.command', new_callable=ExtendedMock )
+        return_value = True,
+        new_callable = ExtendedMock )
+@patch( 'vim.eval', return_value = 10, new_callable = ExtendedMock )
+@patch( 'vim.command', new_callable = ExtendedMock )
 def ReplaceChunks_SingleFile_NotOpen_test( vim_command,
                                            vim_eval,
                                            confirm,
-                                           echo_text_vim_width,
+                                           post_vim_message,
                                            open_filename,
                                            buffer_is_visible,
                                            get_buffer_number_for_filename,
@@ -916,33 +916,33 @@ def ReplaceChunks_SingleFile_NotOpen_test( vim_command,
 
   # And it is ReplaceChunks that prints the message showing the number of
   # changes
-  echo_text_vim_width.assert_has_exact_calls( [
-    call( 'Applied 1 changes' ),
+  post_vim_message.assert_has_exact_calls( [
+    call( 'Applied 1 changes', warning = False ),
   ] )
 
 
 @patch( 'ycm.vimsupport.GetBufferNumberForFilename',
-        side_effect=[ -1, -1, 1 ],
-        new_callable=ExtendedMock )
+        side_effect = [ -1, -1, 1 ],
+        new_callable = ExtendedMock )
 @patch( 'ycm.vimsupport.BufferIsVisible',
-        side_effect=[ False, False, True ],
-        new_callable=ExtendedMock )
+        side_effect = [ False, False, True ],
+        new_callable = ExtendedMock )
 @patch( 'ycm.vimsupport.OpenFilename',
-        new_callable=ExtendedMock )
-@patch( 'ycm.vimsupport.EchoTextVimWidth',
-        new_callable=ExtendedMock )
+        new_callable = ExtendedMock )
+@patch( 'ycm.vimsupport.PostVimMessage',
+        new_callable = ExtendedMock )
 @patch( 'ycm.vimsupport.Confirm',
-        return_value=False,
-        new_callable=ExtendedMock )
+        return_value = False,
+        new_callable = ExtendedMock )
 @patch( 'vim.eval',
-        return_value=10,
-        new_callable=ExtendedMock )
-@patch( 'vim.command', new_callable=ExtendedMock )
+        return_value = 10,
+        new_callable = ExtendedMock )
+@patch( 'vim.command', new_callable = ExtendedMock )
 def ReplaceChunks_User_Declines_To_Open_File_test(
                                            vim_command,
                                            vim_eval,
                                            confirm,
-                                           echo_text_vim_width,
+                                           post_vim_message,
                                            open_filename,
                                            buffer_is_visible,
                                            get_buffer_number_for_filename ):
@@ -993,33 +993,33 @@ def ReplaceChunks_User_Declines_To_Open_File_test(
   open_filename.assert_not_called()
   vim_eval.assert_not_called()
   vim_command.assert_not_called()
-  echo_text_vim_width.assert_not_called()
+  post_vim_message.assert_not_called()
 
 
 @patch( 'ycm.vimsupport.GetBufferNumberForFilename',
-        side_effect=[ -1, -1, 1 ],
-        new_callable=ExtendedMock )
+        side_effect = [ -1, -1, 1 ],
+        new_callable = ExtendedMock )
 # Key difference is here: In the final check, BufferIsVisible returns False
 @patch( 'ycm.vimsupport.BufferIsVisible',
-        side_effect=[ False, False, False ],
-        new_callable=ExtendedMock )
+        side_effect = [ False, False, False ],
+        new_callable = ExtendedMock )
 @patch( 'ycm.vimsupport.OpenFilename',
-        new_callable=ExtendedMock )
-@patch( 'ycm.vimsupport.EchoTextVimWidth',
-        new_callable=ExtendedMock )
+        new_callable = ExtendedMock )
+@patch( 'ycm.vimsupport.PostVimMessage',
+        new_callable = ExtendedMock )
 @patch( 'ycm.vimsupport.Confirm',
-        return_value=True,
-        new_callable=ExtendedMock )
+        return_value = True,
+        new_callable = ExtendedMock )
 @patch( 'vim.eval',
-        return_value=10,
-        new_callable=ExtendedMock )
+        return_value = 10,
+        new_callable = ExtendedMock )
 @patch( 'vim.command',
-        new_callable=ExtendedMock )
+        new_callable = ExtendedMock )
 def ReplaceChunks_User_Aborts_Opening_File_test(
                                            vim_command,
                                            vim_eval,
                                            confirm,
-                                           echo_text_vim_width,
+                                           post_vim_message,
                                            open_filename,
                                            buffer_is_visible,
                                            get_buffer_number_for_filename ):
@@ -1066,41 +1066,41 @@ def ReplaceChunks_User_Aborts_Opening_File_test(
   vim_eval.assert_called_with( "&previewheight" )
 
   # But raised an exception before issuing the message at the end
-  echo_text_vim_width.assert_not_called()
+  post_vim_message.assert_not_called()
 
 
 @patch( 'ycm.vimsupport.VariableExists', return_value = False )
 @patch( 'ycm.vimsupport.SetFittingHeightForCurrentWindow' )
-@patch( 'ycm.vimsupport.GetBufferNumberForFilename', side_effect=[
+@patch( 'ycm.vimsupport.GetBufferNumberForFilename', side_effect = [
           22, # first_file (check)
           -1, # another_file (check)
           22, # first_file (apply)
           -1, # another_file (apply)
           19, # another_file (check after open)
         ],
-        new_callable=ExtendedMock )
-@patch( 'ycm.vimsupport.BufferIsVisible', side_effect=[
+        new_callable = ExtendedMock )
+@patch( 'ycm.vimsupport.BufferIsVisible', side_effect = [
           True,  # first_file (check)
           False, # second_file (check)
           True,  # first_file (apply)
           False, # second_file (apply)
           True,  # side_effect (check after open)
         ],
-        new_callable=ExtendedMock)
+        new_callable = ExtendedMock)
 @patch( 'ycm.vimsupport.OpenFilename',
-        new_callable=ExtendedMock)
-@patch( 'ycm.vimsupport.EchoTextVimWidth',
-        new_callable=ExtendedMock)
-@patch( 'ycm.vimsupport.Confirm', return_value=True,
-        new_callable=ExtendedMock)
-@patch( 'vim.eval', return_value=10,
-        new_callable=ExtendedMock)
+        new_callable = ExtendedMock)
+@patch( 'ycm.vimsupport.PostVimMessage',
+        new_callable = ExtendedMock)
+@patch( 'ycm.vimsupport.Confirm', return_value = True,
+        new_callable = ExtendedMock)
+@patch( 'vim.eval', return_value = 10,
+        new_callable = ExtendedMock)
 @patch( 'vim.command',
-        new_callable=ExtendedMock)
+        new_callable = ExtendedMock)
 def ReplaceChunks_MultiFile_Open_test( vim_command,
                                        vim_eval,
                                        confirm,
-                                       echo_text_vim_width,
+                                       post_vim_message,
                                        open_filename,
                                        buffer_is_visible,
                                        get_buffer_number_for_filename,
@@ -1193,8 +1193,8 @@ def ReplaceChunks_MultiFile_Open_test( vim_command,
 
   # And it is ReplaceChunks that prints the message showing the number of
   # changes
-  echo_text_vim_width.assert_has_exact_calls( [
-    call( 'Applied 2 changes' ),
+  post_vim_message.assert_has_exact_calls( [
+    call( 'Applied 2 changes', warning = False ),
   ] )
 
 
@@ -1218,6 +1218,32 @@ def _BuildChunk( start_line,
     },
     'replacement_text': replacement_text
   }
+
+
+@patch( 'vim.eval', new_callable = ExtendedMock )
+def AddDiagnosticSyntaxMatch_ErrorInMiddleOfLine_test( vim_eval ):
+  current_buffer = MockBuffer( [
+    'Highlight this error please'
+  ], 'some_file', 1 )
+
+  with patch( 'vim.current.buffer', current_buffer ):
+    vimsupport.AddDiagnosticSyntaxMatch( 1, 16, 1, 21 )
+
+  vim_eval.assert_called_once_with(
+    r"matchadd('YcmErrorSection', '\%1l\%16c\_.\{-}\%1l\%21c')" )
+
+
+@patch( 'vim.eval', new_callable = ExtendedMock )
+def AddDiagnosticSyntaxMatch_WarningAtEndOfLine_test( vim_eval ):
+  current_buffer = MockBuffer( [
+    'Highlight this warning'
+  ], 'some_file', 1 )
+
+  with patch( 'vim.current.buffer', current_buffer ):
+    vimsupport.AddDiagnosticSyntaxMatch( 1, 16, 1, 23, is_error = False )
+
+  vim_eval.assert_called_once_with(
+    r"matchadd('YcmWarningSection', '\%1l\%16c\_.\{-}\%1l\%23c')" )
 
 
 @patch( 'vim.command', new_callable=ExtendedMock )
@@ -1267,7 +1293,8 @@ def WriteToPreviewWindow_JumpFail_test( vim_current, vim_command ):
     call( 'silent! pclose!' ),
     call( 'silent! pedit! _TEMP_FILE_' ),
     call( 'silent! wincmd P' ),
-    call( "echom 'test'" ),
+    call( 'redraw' ),
+    call( "echo 'test'" ),
   ] )
 
   vim_current.buffer.__setitem__.assert_not_called()
@@ -1286,8 +1313,9 @@ def WriteToPreviewWindow_JumpFail_MultiLine_test( vim_current, vim_command ):
     call( 'silent! pclose!' ),
     call( 'silent! pedit! _TEMP_FILE_' ),
     call( 'silent! wincmd P' ),
-    call( "echom 'test'" ),
-    call( "echom 'test2'" ),
+    call( 'redraw' ),
+    call( "echo 'test'" ),
+    call( "echo 'test2'" ),
   ] )
 
   vim_current.buffer.__setitem__.assert_not_called()
