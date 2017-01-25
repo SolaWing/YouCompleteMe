@@ -55,7 +55,7 @@ flags = [
 ## a "-std=<something>".
 ## For a C project, you would set this to something like 'c99' instead of
 ## 'c++11'.
-#'-std=gnu99',
+#'-std=gnu11',
 '-D__arm__',
 '-arch armv7',
 '-miphoneos-version-min=7.0',
@@ -201,6 +201,14 @@ def findProjectRootAndPchFile(filename):
 
     return (directory, pchFile)
 
+def additionalFlags(root):
+    flagsPath = os.path.join(root, '.flags')
+    if os.path.isfile(flagsPath):
+        with open(flagsPath) as f:
+            l = list(filter( bool, (line.strip() for line in f) ))
+        return l
+    return []
+
 headerDirsCacheDict = dict()
 def findAllHeaderDirectory(rootDirectory):
     headerDirs = headerDirsCacheDict.get(rootDirectory)
@@ -288,9 +296,10 @@ def FlagsForFile( filename, **kwargs ):
         except Exception as e:
             import logging
             logging.exception('headers append fail!')
+        final_flags += additionalFlags(project_root)
 
     if filename.endswith('.m') or filename.endswith('.c'):
-        final_flags.append('-std=gnu99');
+        final_flags.append('-std=gnu11');
     else:
         final_flags.append('-std=gnu++11');
 
