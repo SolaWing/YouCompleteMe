@@ -24,13 +24,10 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 standard_library.install_aliases()
 from builtins import *  # noqa
 
-from requests.exceptions import ReadTimeout
-
 from ycmd.utils import ToUnicode
 from ycm.client.base_request import ( BaseRequest, JsonFromFuture,
                                       HandleServerException,
                                       MakeServerException )
-from ycmd.responses import ServerError
 
 TIMEOUT_SECONDS = 10
 
@@ -40,6 +37,8 @@ class CompletionRequest( BaseRequest ):
     super( CompletionRequest, self ).__init__()
     self.request_data = request_data
     self.doneItem = None
+    self._response_future = None
+
 
   def Start( self ):
     self._response_future = self.PostDataToHandlerAsync( self.request_data,
@@ -48,7 +47,7 @@ class CompletionRequest( BaseRequest ):
 
 
   def Done( self ):
-    return self._response_future.done()
+    return bool( self._response_future ) and self._response_future.done()
 
   def Wait( self , timeout = None):
       """return True or False when timeout"""
@@ -62,16 +61,15 @@ class CompletionRequest( BaseRequest ):
   def RawResponse( self ):
     if not self._response_future:
       return []
-    try:
+    with HandleServerException( truncate = True ):
       response = JsonFromFuture( self._response_future )
 
       errors = response[ 'errors' ] if 'errors' in response else []
       for e in errors:
-        HandleServerException( MakeServerException( e ) )
+        with HandleServerException( truncate = True ):
+          raise MakeServerException( e )
 
-      return JsonFromFuture( self._response_future )[ 'completions' ]
-    except ( ServerError, ReadTimeout ) as e:
-      HandleServerException( e, truncate = True )
+      return response[ 'completions' ]
     return []
 
 

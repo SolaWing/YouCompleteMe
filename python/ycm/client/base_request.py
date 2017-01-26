@@ -23,6 +23,8 @@ from future import standard_library
 standard_library.install_aliases()
 from builtins import *  # noqa
 
+import contextlib
+import logging
 import requests
 import urllib.parse
 import json
@@ -41,6 +43,7 @@ _EXECUTOR = UnsafeThreadPoolExecutor( max_workers = 30 )
 # Setting this to None seems to screw up the Requests/urllib3 libs.
 _DEFAULT_TIMEOUT_SEC = 30
 _HMAC_HEADER = 'x-ycm-hmac'
+_logger = logging.getLogger( __name__ )
 
 
 class BaseRequest( object ):
@@ -167,19 +170,28 @@ class BaseRequest( object ):
   hmac_secret = ''
 
 
-def BuildRequestData( include_buffer_data = True ):
+def BuildRequestData( filepath = None ):
+  """Build request for the current buffer or the buffer corresponding to
+  |filepath| if specified."""
+  current_filepath = vimsupport.GetCurrentBufferFilepath()
+
+  if filepath and current_filepath != filepath:
+    # Cursor position is irrelevant when filepath is not the current buffer.
+    return {
+      'filepath': filepath,
+      'line_num': 1,
+      'column_num': 1,
+      'file_data': vimsupport.GetUnsavedAndSpecifiedBufferData( filepath )
+    }
+
   line, column = vimsupport.CurrentLineAndColumn()
-  filepath = vimsupport.GetCurrentBufferFilepath()
-  request_data = {
+
+  return {
+    'filepath': current_filepath,
     'line_num': line + 1,
     'column_num': column + 1,
-    'filepath': filepath
+    'file_data': vimsupport.GetUnsavedAndSpecifiedBufferData( current_filepath )
   }
-
-  if include_buffer_data:
-    request_data[ 'file_data' ] = vimsupport.GetUnsavedAndCurrentBufferData()
-
-  return request_data
 
 
 def JsonFromFuture( future ):
@@ -197,7 +209,49 @@ def JsonFromFuture( future ):
   return None
 
 
-def HandleServerException( exception, truncate = False ):
+@contextlib.contextmanager
+def HandleServerException( display = True, truncate = False ):
+  """Catch any exception raised through server communication. If it is raised
+  because of a unknown .ycm_extra_conf.py file, load the file or ignore it after
+  asking the user. Otherwise, log the exception and display its message to the
+  user on the Vim status line. Unset the |display| parameter to hide the message
+  from the user. Set the |truncate| parameter to avoid hit-enter prompts from
+  this message.
+
+  The GetDataFromHandler, PostDataToHandler, and JsonFromFuture functions should
+  always be wrapped by this function to avoid Python exceptions bubbling up to
+  the user.
+
+  Example usage:
+
+   with HandleServerException():
+     response = BaseRequest.PostDataToHandler( ... )
+  """
+  try:
+    try:
+      yield
+    except UnknownExtraConf as e:
+      if vimsupport.Confirm( str( e ) ):
+        _LoadExtraConfFile( e.extra_conf_file )
+      else:
+        _IgnoreExtraConfFile( e.extra_conf_file )
+  except Exception as e:
+    _logger.exception( 'Error while handling server response' )
+    if display:
+      DisplayServerException( e, truncate )
+
+
+def _LoadExtraConfFile( filepath ):
+  BaseRequest.PostDataToHandler( { 'filepath': filepath },
+                                 'load_extra_conf_file' )
+
+
+def _IgnoreExtraConfFile( filepath ):
+  BaseRequest.PostDataToHandler( { 'filepath': filepath },
+                                 'ignore_extra_conf_file' )
+
+
+def DisplayServerException( exception, truncate = False ):
   serialized_exception = str( exception )
 
   # We ignore the exception about the file already being parsed since it comes
