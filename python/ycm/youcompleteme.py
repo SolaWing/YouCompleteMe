@@ -593,8 +593,8 @@ class YouCompleteMe( object ):
       def replaceParam(match):
           count[0] += 1
           expand = match.group(1)
-          text = re.sub(r'\w+##', '', expand)
-          return u"${%d:%s}"%(count[0], text)
+          text = expand.split('##')
+          return u"${%d:%s}"%(count[0], text[ min(len(text)-1, 1) ])
 
       templ, n = re.subn(r'<#(.+?)#>', replaceParam, templ)
       #  print ( "anon:", templ, text )
