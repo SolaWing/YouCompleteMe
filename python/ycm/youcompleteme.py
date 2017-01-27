@@ -139,6 +139,7 @@ class YouCompleteMe( object ):
         'cpp':    clang_param_expand,
         'objc':   clang_param_expand,
         'objcpp': clang_param_expand,
+        'swift':  lambda self: self._OnCompleteDone_Swift(),
         '*':      lambda self: self._OnCompleteDone_UltiSnip(),
     }
 
@@ -575,6 +576,32 @@ class YouCompleteMe( object ):
 
       vim.eval('UltiSnips#ExpandSnippet()')
       return True
+
+  def _OnCompleteDone_Swift(self):
+      if not vimsupport.VariableExists('*UltiSnips#Anon'): return
+
+      completions = self.GetCompletionsUserMayHaveCompleted()
+      if not completions: return
+
+      completion = completions[0]
+      templ = completion.get(u"extra_data",dict()).get(u"template")
+      if not templ: return
+      text = completion.get(u"insertion_text")
+      if not text: return
+
+      count = [0]
+      def replaceParam(match):
+          count[0] += 1
+          expand = match.group(1)
+          text = re.sub(r'\w+##', '', expand)
+          return u"${%d:%s}"%(count[0], text)
+
+      templ, n = re.subn(r'<#(.+?)#>', replaceParam, templ)
+      #  print ( "anon:", templ, text )
+      if templ != text:
+          vim.eval("UltiSnips#Anon('{}', '{}', '', 'i')".format(
+              *map(vimsupport.EscapeForVim, (templ, text))))
+          return True
 
   def _OnCompleteDone_Clang(self):
       if not vimsupport.VariableExists('*UltiSnips#Anon'): return
