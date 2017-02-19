@@ -599,6 +599,9 @@ class YouCompleteMe( object ):
       templ, n = re.subn(r'<#(.+?)#>', replaceParam, templ)
       #  print ( "anon:", templ, text )
       if templ != text:
+          if templ[0:2] == '?.' and templ[2] == text[0]:
+              text = '.' + text
+          #  print("expand: ", completion)
           vim.eval("UltiSnips#Anon('{}', '{}', '', 'i')".format(
               *map(vimsupport.EscapeForVim, (templ, text))))
           return True

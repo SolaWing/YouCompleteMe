@@ -58,7 +58,7 @@ flags = [
 #'-std=gnu11',
 '-D__arm__',
 '-arch armv7',
-'-miphoneos-version-min=7.0',
+'-miphoneos-version-min=8.0',
 # ...and the same thing goes for the magic -x option which specifies the
 # language that the files to be compiled are written in. This is mostly
 # relevant for c++ headers.
@@ -79,7 +79,7 @@ flags = [
 #'-fmessage-length=0',
 #'-Os',
 #'-fobjc-abi-version=2',
-#'-fmodules',
+#  '-fmodules',
 '-fpascal-strings',
 '-fstrict-aliasing',
 #warnings
