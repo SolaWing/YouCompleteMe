@@ -336,7 +336,9 @@ def FlagsForSwift(filename, **kwargs):
             final_flags += ['-Xcc', '-I' + escapeSpace(h)]
         for f in frameworks:
             final_flags.append( '-F'+escapeSpace(f) )
-        final_flags += findAllSwiftFiles(project_root)
+        swiftfiles = findAllSwiftFiles(project_root)
+        swiftfiles.remove(os.path.abspath(filename))
+        final_flags += swiftfiles
         final_flags += additionalSwiftFlags(project_root)
 
     return { 'flags': final_flags }
