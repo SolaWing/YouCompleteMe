@@ -112,6 +112,7 @@ HANDLE_FLAG_INHERIT = 0x00000001
 
 class YouCompleteMe( object ):
   def __init__( self, user_options ):
+    import threading
     self._available_completers = {}
     self._user_options = user_options
     self._user_notified_about_crash = False
@@ -119,6 +120,10 @@ class YouCompleteMe( object ):
     self._omnicomp = OmniCompleter( user_options )
     self._latest_file_parse_request = None
     self._latest_completion_request = None
+    self._current_completion_requests = []
+    self._latest_completion_request_with_response = None
+    self._async_completion_timer = None
+    self._latest_completion_position = None
     self._latest_diagnostics = []
     self._logger = logging.getLogger( 'ycm' )
     self._client_logfile = None
@@ -277,6 +282,18 @@ class YouCompleteMe( object ):
 
 
   def CreateCompletionRequest( self, force_semantic = False ):
+      completion_position = vimsupport.CurrentLineAndColumn()
+      completion_position = (completion_position[0], base.CompletionStartColumn())
+      if completion_position != self._latest_completion_position:
+          self.StopAsyncTimer()
+          self._latest_completion_request_with_response = None
+          self._current_completion_requests = []
+          self._latest_completion_position = completion_position
+      request = self._CreateCompletionRequest(force_semantic)
+      request.Start()
+      return request
+
+  def _CreateCompletionRequest( self, force_semantic):
     # BuildRequestData will get all modify buffer. 
     # if buffer is very large, may delay response and cause flick
     # if response speed less than one frame, will flick
@@ -298,15 +315,50 @@ class YouCompleteMe( object ):
     return self._latest_completion_request
 
 
+  def GetLatestCompletionPosition( self ):
+      return self._latest_completion_position
+
+  def UpdateLatestCompletions(self):
+      """ return True when _latest_completion_request_with_response is updated """
+      current_completion_requests = self._current_completion_requests
+      for (i, pendingRequest) in enumerate(reversed(current_completion_requests)):
+          if pendingRequest.Done():
+              self._latest_completion_request_with_response = pendingRequest;
+              self._current_completion_requests = current_completion_requests[len(current_completion_requests)-i:]
+              return True
+      return False
+
+  def StartAsyncTimer(self):
+      if self._async_completion_timer is None:
+          self._async_completion_timer = vim.eval('timer_start(1000, "youcompleteme#AsyncCompletionTimer", {"repeat":-1})')
+
+  def StopAsyncTimer(self):
+      if self._async_completion_timer is not None:
+          vim.eval('timer_stop(%s)'%self._async_completion_timer)
+          self._async_completion_timer = None
+
+  def GetLatestCompletions(self):
+      request = self._latest_completion_request_with_response
+      if request:
+          results = base.AdjustCandidateInsertionText( request.Response() )
+          return { 'words' : results, 'refresh' : 'always' }
+      else:
+          return { 'words' : [], 'refresh' : 'always'}
+
+
   def GetCompletions( self ):
     request = self.GetCurrentCompletionRequest()
-    request.Start()
-    while request.Wait(0.01) is False:
-      if bool( int( vim.eval( 'complete_check()' ) ) ):
-        return { 'words' : [], 'refresh' : 'always'}
+    if request.Wait(0.01) is False:
+        self.UpdateLatestCompletions()
+        self._current_completion_requests.append(request)
+        ret = self.GetLatestCompletions()
+        self.StartAsyncTimer()
+        return ret
 
-    results = base.AdjustCandidateInsertionText( request.Response() )
-    return { 'words' : results, 'refresh' : 'always' }
+    self.StopAsyncTimer()
+    self._current_completion_requests = []
+    self._latest_completion_request_with_response = request
+    return self.GetLatestCompletions()
 
 
   def SendCommandRequest( self, arguments, completer ):
@@ -437,7 +489,7 @@ class YouCompleteMe( object ):
 
 
   def GetCompletionsUserMayHaveCompleted( self ):
-    latest_completion_request = self.GetCurrentCompletionRequest()
+    latest_completion_request = self._latest_completion_request_with_response
     if not latest_completion_request or not latest_completion_request.Done():
       return []
 

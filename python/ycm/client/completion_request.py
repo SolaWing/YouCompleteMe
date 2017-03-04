@@ -69,7 +69,9 @@ class CompletionRequest( BaseRequest ):
         with HandleServerException( truncate = True ):
           raise MakeServerException( e )
 
-      return response[ 'completions' ]
+      raw_response = response['completions']
+      self.RawResponse = lambda: raw_response
+      return raw_response
     return []
 
 

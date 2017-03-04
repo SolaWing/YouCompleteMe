@@ -22,6 +22,7 @@ set cpo&vim
 " This needs to be called outside of a function
 let s:script_folder_path = escape( expand( '<sfile>:p:h' ), '\' )
 let s:omnifunc_mode = 0
+let s:async_complete_mode = 0
 
 let s:old_cursor_position = []
 let s:cursor_moved = 0
@@ -477,6 +478,7 @@ endfunction
 
 
 function! s:OnCursorHold()
+  " not invoke when in completion
   if !s:AllowedToCompleteInCurrentBuffer()
     return
   endif
@@ -720,8 +722,28 @@ function! s:InvokeCompletion()
 endfunction
 
 
+function! youcompleteme#AsyncCompletionTimer(timer)
+  if mode() =~# '[iR]'
+      if s:Pyeval( 'ycm_state.UpdateLatestCompletions()' )
+          let s:async_complete_mode = 1
+          call s:InvokeCompletion()
+      endif
+  else
+      exec s:python_command "ycm_state.StopAsyncTimer()"
+  endif
+endfunction
+
+
 " This is our main entry point. This is what vim calls to get completions.
 function! youcompleteme#Complete( findstart, base )
+  if s:async_complete_mode
+      if a:findstart
+          return s:Pyeval( 'ycm_state.GetLatestCompletionPosition()[1]' )
+      else
+          let s:async_complete_mode = 0
+          return s:Pyeval( 'ycm_state.GetCompletions()' )
+      endif
+  endif
   " After the user types one character after the call to the omnifunc, the
   " completefunc will be called because of our mapping that calls the
   " completefunc on every keystroke. Therefore we need to delegate the call we
@@ -741,7 +763,7 @@ function! youcompleteme#Complete( findstart, base )
     endif
 
     exec s:python_command "ycm_state.CreateCompletionRequest()"
-    return s:Pyeval( 'base.CompletionStartColumn()' )
+    return s:Pyeval( 'ycm_state.GetLatestCompletionPosition()[1]' )
   else
     return s:Pyeval( 'ycm_state.GetCompletions()' )
   endif
@@ -753,7 +775,7 @@ function! youcompleteme#OmniComplete( findstart, base )
     let s:omnifunc_mode = 1
     exec s:python_command "ycm_state.CreateCompletionRequest(" .
           \ "force_semantic = True )"
-    return s:Pyeval( 'base.CompletionStartColumn()' )
+    return s:Pyeval( 'ycm_state.GetLatestCompletionPosition()[1]' )
   else
     return s:Pyeval( 'ycm_state.GetCompletions()' )
   endif
