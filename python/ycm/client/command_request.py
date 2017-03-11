@@ -90,9 +90,12 @@ class CommandRequest( BaseRequest ):
         [ _BuildQfListItem( x ) for x in self._response ] )
       vimsupport.OpenQuickFixList( focus = True, autoclose = True )
     else:
-      vimsupport.JumpToLocation( self._response[ 'filepath' ],
-                                 self._response[ 'line_num' ],
-                                 self._response[ 'column_num' ] )
+        if 'line_num' in self._response:
+            vimsupport.JumpToLocation(self._response[ 'filepath' ],
+                                      self._response[ 'line_num' ],
+                                      self._response[ 'column_num' ])
+        elif 'byte_offset' in self._response:
+            vimsupport.JumpToLocation(self._response[ 'filepath' ], self._response[ 'byte_offset' ])
 
 
   def _HandleFixitResponse( self ):

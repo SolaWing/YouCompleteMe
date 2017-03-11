@@ -385,7 +385,8 @@ def EscapedFilepath( filepath ):
 
 
 # Both |line| and |column| need to be 1-based
-def TryJumpLocationInOpenedTab( filename, line, column ):
+# when no column, first is byte offset
+def TryJumpLocationInOpenedTab( filename, line, column):
   filepath = os.path.realpath( filename )
 
   for tab in vim.tabpages:
@@ -393,7 +394,8 @@ def TryJumpLocationInOpenedTab( filename, line, column ):
       if win.buffer.name == filepath:
         vim.current.tabpage = tab
         vim.current.window = win
-        vim.current.window.cursor = ( line, column - 1 )
+        if column is None: vim.command('%dgo'%(line+1))
+        else: vim.current.window.cursor = ( line, column - 1 )
 
         # Center the screen on the jumped-to location
         vim.command( 'normal! zz' )
@@ -411,7 +413,7 @@ def GetVimCommand( user_command, default = 'edit' ):
 
 
 # Both |line| and |column| need to be 1-based
-def JumpToLocation( filename, line, column ):
+def JumpToLocation( filename, line, column = None):
   # Add an entry to the jumplist
   vim.command( "normal! m'" )
 
@@ -425,7 +427,7 @@ def JumpToLocation( filename, line, column ):
     user_command = user_options_store.Value( 'goto_buffer_command' )
 
     if user_command == 'new-or-existing-tab':
-      if TryJumpLocationInOpenedTab( filename, line, column ):
+      if TryJumpLocationInOpenedTab( filename, line, column):
         return
       user_command = 'new-tab'
 
@@ -438,7 +440,8 @@ def JumpToLocation( filename, line, column ):
             vim.command( 'keepjumps {0} {1}'.format( 'split', filename ) )
     else:
         vim.command( 'keepjumps {0} {1}'.format( command, filename ) )
-  vim.current.window.cursor = ( line, column - 1 )
+  if column is None: vim.command('%dgo'%(line+1))
+  else: vim.current.window.cursor = ( line, column - 1 )
 
   # Center the screen on the jumped-to location
   vim.command( 'normal! zz' )
