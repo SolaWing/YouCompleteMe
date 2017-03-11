@@ -285,7 +285,6 @@ class YouCompleteMe( object ):
       completion_position = vimsupport.CurrentLineAndColumn()
       completion_position = (completion_position[0], base.CompletionStartColumn())
       if completion_position != self._latest_completion_position:
-          self.StopAsyncTimer()
           self._latest_completion_request_with_response = None
           self._current_completion_requests = []
           self._latest_completion_position = completion_position
