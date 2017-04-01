@@ -339,7 +339,7 @@ class YouCompleteMe( object ):
   def GetLatestCompletions(self):
       request = self._latest_completion_request_with_response
       if request:
-          results = base.AdjustCandidateInsertionText( request.Response() )
+          #  results = base.AdjustCandidateInsertionText( request.Response() )
           return { 'words' : results, 'refresh' : 'always' }
       else:
           return { 'words' : [], 'refresh' : 'always'}
