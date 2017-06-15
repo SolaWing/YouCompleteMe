@@ -57,7 +57,7 @@ flags = [
 ## 'c++11'.
 #'-std=gnu11',
 '-D__arm__',
-'-arch armv7',
+'-arch arm64',
 '-miphoneos-version-min=8.0',
 # ...and the same thing goes for the magic -x option which specifies the
 # language that the files to be compiled are written in. This is mostly
@@ -299,11 +299,11 @@ def FlagsForFile( filename, **kwargs ):
             headers, frameworks = findAllHeaderDirectory(project_root)
             #  print("header&framework:\n",headers, frameworks, file=out)
             if headers:
-                final_flags += ['-I'+ escapeSpace(s) for s in headers]
+                final_flags += ['-I'+ s for s in headers]
             if frameworks:
-                final_flags += ['-iframework'+escapeSpace(s) for s in frameworks]
+                final_flags += ['-iframework'+s for s in frameworks]
             if pchFile:
-                final_flags.append('-include'+escapeSpace(pchFile))
+                final_flags.append('-include'+pchFile)
         except Exception as e:
             import logging
             logging.exception('headers append fail!')
