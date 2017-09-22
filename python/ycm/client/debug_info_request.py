@@ -19,8 +19,7 @@ from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
-from future import standard_library
-standard_library.install_aliases()
+# Not installing aliases from python-future; it's unreliable and slow.
 from builtins import *  # noqa
 
 from ycm.client.base_request import ( BaseRequest, BuildRequestData,
@@ -28,13 +27,16 @@ from ycm.client.base_request import ( BaseRequest, BuildRequestData,
 
 
 class DebugInfoRequest( BaseRequest ):
-  def __init__( self ):
+  def __init__( self, extra_data = None ):
     super( DebugInfoRequest, self ).__init__()
+    self._extra_data = extra_data
     self._response = None
 
 
   def Start( self ):
     request_data = BuildRequestData()
+    if self._extra_data:
+      request_data.update( self._extra_data )
     with HandleServerException( display = False ):
       self._response = self.PostDataToHandler( request_data, 'debug_info' )
 
@@ -111,8 +113,8 @@ def _FormatCompleterDebugInfo( completer ):
   return message
 
 
-def SendDebugInfoRequest():
-  request = DebugInfoRequest()
+def SendDebugInfoRequest( extra_data = None ):
+  request = DebugInfoRequest( extra_data )
   # This is a blocking call.
   request.Start()
   return request.Response()

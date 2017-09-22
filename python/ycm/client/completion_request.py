@@ -19,17 +19,13 @@ from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
-from future import standard_library
-from concurrent.futures import TimeoutError as FutureTimeoutError
-standard_library.install_aliases()
+# Not installing aliases from python-future; it's unreliable and slow.
 from builtins import *  # noqa
 
 from ycmd.utils import ToUnicode
 from ycm.client.base_request import ( BaseRequest, JsonFromFuture,
                                       HandleServerException,
                                       MakeServerException )
-
-TIMEOUT_SECONDS = 10
 
 
 class CompletionRequest( BaseRequest ):
@@ -38,18 +34,19 @@ class CompletionRequest( BaseRequest ):
     self.request_data = request_data
     self.doneItem = None
     self._response_future = None
+    self._response = { 'completions': [], 'completion_start_column': -1 }
 
 
   def Start( self ):
     self._response_future = self.PostDataToHandlerAsync( self.request_data,
-                                                         'completions',
-                                                         TIMEOUT_SECONDS )
+                                                         'completions' )
 
 
   def Done( self ):
     return bool( self._response_future ) and self._response_future.done()
 
   def Wait( self , timeout = None):
+      from concurrent.futures import TimeoutError as FutureTimeoutError
       """return True or False when timeout"""
       try:
           # use ressult with httpconnection timeout will raise error, why?
@@ -60,23 +57,26 @@ class CompletionRequest( BaseRequest ):
 
   def RawResponse( self ):
     if not self._response_future:
-      return []
-    with HandleServerException( truncate = True ):
-      response = JsonFromFuture( self._response_future )
+      return self._response
 
-      errors = response[ 'errors' ] if 'errors' in response else []
+    with HandleServerException( truncate = True ):
+      self._response = JsonFromFuture( self._response_future )
+
+      # Vim may not be able to convert the 'errors' entry to its internal format
+      # so we remove it from the response.
+      errors = self._response.pop( 'errors', [] )
       for e in errors:
         with HandleServerException( truncate = True ):
           raise MakeServerException( e )
 
-      raw_response = response['completions']
-      self.RawResponse = lambda: raw_response
-      return raw_response
-    return []
+    return self._response
 
 
   def Response( self ):
-    return _ConvertCompletionDatasToVimDatas( self.RawResponse() )
+    response = self.RawResponse()
+    response[ 'completions' ] = _ConvertCompletionDatasToVimDatas(
+        response[ 'completions' ] )
+    return response
 
 
 def ConvertCompletionDataToVimData( completion_data ):
