@@ -1,3 +1,4 @@
+# flake8: noqa: E501
 # Copyright (C) 2011-2012 Google Inc.
 #               2016-2017 YouCompleteMe contributors
 #
@@ -32,6 +33,7 @@ import re
 import signal
 import vim
 from subprocess import PIPE
+from time import time
 from tempfile import NamedTemporaryFile
 from ycm import base, paths, vimsupport
 from ycm.buffer import BufferDict
@@ -117,7 +119,7 @@ class YouCompleteMe( object ):
     self._omnicomp = OmniCompleter( user_options )
     self._buffers = BufferDict( user_options )
     self._latest_completion_request = None
-    self._logger = logging.getLogger( 'ycm' )
+    self._logger = logging.getLogger( 'ycm' ) # type: logging.Logger
     self._client_logfile = None
     self._server_stdout = None
     self._server_stderr = None
@@ -128,18 +130,21 @@ class YouCompleteMe( object ):
     self._SetupLogging()
     self._SetupServer()
     self._ycmd_keepalive.Start()
-    clang_param_expand = lambda self: self._OnCompleteDone_Clang()
+
+    def clang_param_expand(self):
+        self._OnCompleteDone_Clang()
     self._complete_really_done = False
     self._complete_done_hooks = {
-      'cs': lambda self: self._OnCompleteDone_Csharp(),
-      'c':      clang_param_expand,
-      'cpp':    clang_param_expand,
-      'objc':   clang_param_expand,
+          'cs': lambda self: self._OnCompleteDone_Csharp(),
+           'c': clang_param_expand,
+         'cpp': clang_param_expand,
+        'objc': clang_param_expand,
       'objcpp': clang_param_expand,
-      'swift':  lambda self: self._OnCompleteDone_Swift(),
-      '*':      lambda self: self._OnCompleteDone_UltiSnip(),
+       'swift': lambda self: self._OnCompleteDone_Swift(),
+           '*': lambda self: self._OnCompleteDone_UltiSnip(),
     }
-
+    import tempfile
+    self._used_completions = UsedCompletions( os.path.join(tempfile.gettempdir(), "ycm_used_completions") )
 
   def _SetupServer( self ):
     self._available_completers = {}
@@ -323,9 +328,32 @@ class YouCompleteMe( object ):
 
   def GetCompletionResponse( self ):
     response = self._latest_completion_request.Response()
+
+    response[ 'completions' ] = self._SortByRecentUsed(response[ 'completions' ])
     response[ 'completions' ] = base.AdjustCandidateInsertionText(
         response[ 'completions' ] )
     return response
+
+  def _SortByRecentUsed( self, completions ):
+    if not completions: return completions
+
+    t = time()
+    def score_at(i):
+      w = completions[i]['word']
+      return self._used_completions.scoreFor(w, t)
+
+    def less(i, j):
+      return score_at(i) < score_at(j)
+
+    for c in range(3):
+      maxi = c
+      for i in range(c+1, len(completions)):
+        if less(maxi, i): maxi = i
+
+      if maxi > c:
+        #  self._logger.debug("move %d to %d", maxi, c)
+        completions.insert(c, completions.pop(maxi))
+    return completions
 
 
   def SendCommandRequest( self, arguments, completer ):
@@ -434,12 +462,20 @@ class YouCompleteMe( object ):
 
 
   def OnCompleteDone( self ):
+    r = self.GetCompletionsUserMayHaveCompleted()
+    if r:
+        self._used_completions.update( r[0].get(u"insertion_text") )
+
     if not self._complete_really_done: return
     complete_done_actions = self.GetCompleteDoneHooks()
     for action in complete_done_actions:
       action(self)
     self._complete_really_done = False
 
+  def _scoreValue(self, score, cur_time):
+    if not score: return 0
+    decend_factor = ( 60 / (60 + (cur_time - score['time'])) )
+    return score['val'] * decend_factor
 
   def GetCompleteDoneHooks( self ):
     filetypes = vimsupport.CurrentFiletypes()
@@ -866,3 +902,27 @@ class YouCompleteMe( object ):
         'description': snippet[ 'description' ] }
       for trigger, snippet in iteritems( snippets )
     ]
+
+class UsedCompletions(object):
+    def __init__(self, path):
+        self._d = {}
+
+    def update(self, word):
+        if not word: return
+
+        d = self._d.setdefault(word, { 'val': 0, 'time': 0 })
+        t = time()
+        d['val'] = self._scoreValue(d, t) + 100
+        d['time']  = t
+
+    def _scoreValue(self, score, cur_time):
+        if not score: return 0
+        decend_factor = ( 60 / (60 + (cur_time - score['time'])) )
+        return score['val'] * decend_factor
+
+    def scoreFor(self, word, time):
+        s = self._d.get(word)
+        return self._scoreValue(s, time)
+
+
+
