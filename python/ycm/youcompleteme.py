@@ -55,7 +55,6 @@ from ycm.client.omni_completion_request import OmniCompletionRequest
 from ycm.client.event_notification import SendEventNotificationAsync
 from ycm.client.shutdown_request import SendShutdownRequest
 
-
 def PatchNoProxy():
   current_value = os.environ.get('no_proxy', '')
   additions = '127.0.0.1,localhost'
@@ -337,17 +336,20 @@ class YouCompleteMe( object ):
   def _SortByRecentUsed( self, completions ):
     if not completions: return completions
 
-    t = time()
+    max_sort_num = min(30, len(completions))
+    scores = self._used_completions.scoresFor( [c['word'] for c in completions[:max_sort_num]],
+                                              time())
+
     def score_at(i):
       w = completions[i]['word']
-      return self._used_completions.scoreFor(w, t)
+      return scores.get(w, 0)
 
     def less(i, j):
       return score_at(i) < score_at(j)
 
     for c in range(3):
       maxi = c
-      for i in range(c+1, len(completions)):
+      for i in range(c+1, max_sort_num):
         if less(maxi, i): maxi = i
 
       if maxi > c:
@@ -930,7 +932,7 @@ time INTEGER
             s = 100
 
             c = self.conn.cursor()
-            c.execute(""" SELECT * FROM used_completions WHERE name = ?  """, (word,))
+            c.execute(""" SELECT val, time FROM used_completions WHERE name = ?  """, (word,))
             r = c.fetchone()
             if r: s += self._scoreValue(r, t)
 
@@ -946,6 +948,13 @@ time INTEGER
         """ get score for word at specified time """
 
         c = self.conn.cursor()
-        c.execute(""" SELECT * FROM used_completions WHERE name = ?  """, (word,))
+        c.execute(""" SELECT val, time FROM used_completions WHERE name = ?  """, (word,))
         r = c.fetchone()
         return self._scoreValue(r, time)
+
+    def scoresFor(self, words, time):
+        """ get score for words at specified time """
+        c = self.conn.cursor()
+        s = """ SELECT name, val, time FROM used_completions WHERE name in ({}) """.format(','.join(['?'] * len(words)) )
+        c.execute(s, words)
+        return { r[0] : self._scoreValue(r, time) for r in c.fetchall() }
