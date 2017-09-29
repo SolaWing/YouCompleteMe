@@ -144,7 +144,7 @@ class YouCompleteMe( object ):
            '*': lambda self: self._OnCompleteDone_UltiSnip(),
     }
     import tempfile
-    self._used_completions = UsedCompletions( os.path.join(tempfile.gettempdir(), "ycm_used_completions") )
+    self._used_completions = UsedCompletions( os.path.join(tempfile.gettempdir(), "ycm_used_completions.sqlite") )
 
   def _SetupServer( self ):
     self._available_completers = {}
@@ -905,24 +905,47 @@ class YouCompleteMe( object ):
 
 class UsedCompletions(object):
     def __init__(self, path):
-        self._d = {}
+        """ create UsedCompletions database at path """
+        #  path = ':memory:'
+        import sqlite3
+        self.conn = sqlite3.connect(path)
+        self.conn.row_factory = sqlite3.Row
+        self.conn.execute("""
+CREATE TABLE IF NOT EXISTS used_completions(
+name TEXT PRIMARY KEY,
+val  REAL,
+time INTEGER
+) """)
+
+    def __del__(self):
+        self.conn.close()
+        self.conn = None
 
     def update(self, word):
+        """ mark word was used and update it's score """
         if not word: return
 
-        d = self._d.setdefault(word, { 'val': 0, 'time': 0 })
-        t = time()
-        d['val'] = self._scoreValue(d, t) + 100
-        d['time']  = t
+        with self.conn:
+            t = time()
+            s = 100
+
+            c = self.conn.cursor()
+            c.execute(""" SELECT * FROM used_completions WHERE name = ?  """, (word,))
+            r = c.fetchone()
+            if r: s += self._scoreValue(r, t)
+
+            c.execute(""" REPLACE INTO used_completions VALUES (?, ?, ?)""", (word, s, t))
 
     def _scoreValue(self, score, cur_time):
         if not score: return 0
+        # score decend by times
         decend_factor = ( 60 / (60 + (cur_time - score['time'])) )
         return score['val'] * decend_factor
 
     def scoreFor(self, word, time):
-        s = self._d.get(word)
-        return self._scoreValue(s, time)
+        """ get score for word at specified time """
 
-
-
+        c = self.conn.cursor()
+        c.execute(""" SELECT * FROM used_completions WHERE name = ?  """, (word,))
+        r = c.fetchone()
+        return self._scoreValue(r, time)
