@@ -1,3 +1,4 @@
+# flake8: noqa
 # This file is NOT licensed under the GPLv3, which is the license for the rest
 # of YouCompleteMe.
 #
@@ -72,7 +73,7 @@ flags = [
 '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/c++/v1',
 '-isystem',
 '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include',
-'-isystem', os.path.join( src, "third_party/ycmd/clang_includes/include" ),
+#  '-isystem', os.path.join( src, "third_party/ycmd/clang_includes/include" ),
 #'-I%s'%src,
 #'-ObjC++',
 '-fobjc-arc',
