@@ -32,7 +32,6 @@ class CompletionRequest( BaseRequest ):
   def __init__( self, request_data ):
     super( CompletionRequest, self ).__init__()
     self.request_data = request_data
-    self.doneItem = None
     self._response_future = None
     self._response = { 'completions': [], 'completion_start_column': -1 }
 

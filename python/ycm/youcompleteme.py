@@ -133,6 +133,7 @@ class YouCompleteMe( object ):
     def clang_param_expand(self):
         self._OnCompleteDone_Clang()
     self._complete_really_done = False
+    self._complete_done_item = None
     self._complete_done_hooks = {
           'cs': lambda self: self._OnCompleteDone_Csharp(),
            'c': clang_param_expand,
@@ -464,8 +465,10 @@ class YouCompleteMe( object ):
 
 
   def OnCompleteDone( self ):
+    self._complete_done_item = None
     r = self.GetCompletionsUserMayHaveCompleted()
     if r:
+        #  self._logger.info("match: %s", r[0].get(u"insertion_text"))
         self._used_completions.update( r[0].get(u"insertion_text") )
 
     if not self._complete_really_done: return
@@ -492,27 +495,15 @@ class YouCompleteMe( object ):
     if not latest_completion_request or not latest_completion_request.Done():
       return []
 
-    if latest_completion_request.doneItem:
-        return latest_completion_request.doneItem
+    if self._complete_done_item is not None:
+        return self._complete_done_item
 
     completions = latest_completion_request.RawResponse().get("completions")
 
     result = self._FilterToMatchingCompletions( completions, True )
     result = list( result )
-    if result:
-      latest_completion_request.doneItem = result
-      return result
 
-    if self._HasCompletionsThatCouldBeCompletedWithMoreText( completions ):
-      # Since the way that YCM works leads to CompleteDone called on every
-      # character, return blank if the completion might not be done. This won't
-      # match if the completion is ended with typing a non-keyword character.
-      return []
-
-    result = self._FilterToMatchingCompletions( completions, False )
-    result = list( result )
-
-    latest_completion_request.doneItem = result
+    self._complete_done_item = result
     return result
 
 
