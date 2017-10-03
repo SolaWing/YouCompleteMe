@@ -510,7 +510,7 @@ class YouCompleteMe( object ):
   def _FilterToMatchingCompletions( self, completions, full_match_only ):
     """Filter to completions matching the item Vim said was completed"""
     completed = vimsupport.GetVariableValue( 'v:completed_item' )
-    #  self._logger.info("completed: %s", utils.ToUnicode( completed.get( "word", "" ) ))
+    #  self._logger.info("completed: %s", dict(completed))
     #  self._logger.info("completions: %s", completions)
     for completion in completions:
       item = ConvertCompletionDataToVimData( completion )
@@ -927,6 +927,7 @@ time INTEGER
             r = c.fetchone()
             if r: s += self._scoreValue(r, t)
 
+            #  logging.getLogger( 'ycm' ).info("update word with score(%d): %s", s, word) # type: logging.Logger
             c.execute(""" REPLACE INTO used_completions VALUES (?, ?, ?)""", (word, s, t))
 
     def _scoreValue(self, score, cur_time):
