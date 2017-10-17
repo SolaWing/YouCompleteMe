@@ -236,8 +236,10 @@ def findAllHeaderDirectory(rootDirectory):
             h = os.path.dirname(h)
             headerDirs.add(h)
             # contains more one dir for import with module name
-            h = os.path.dirname(h)
-            headerDirs.add(h)
+            # don't contains more one module name dir. if need, can specify in .flags
+            # conflict with #if_include framework check
+            #  h = os.path.dirname(h)
+            #  headerDirs.add(h)
 
     headerDirsCacheDict[rootDirectory] = (headerDirs, frameworks)
     return headerDirs, frameworks

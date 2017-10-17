@@ -348,7 +348,7 @@ class YouCompleteMe( object ):
     def less(i, j):
       return score_at(i) < score_at(j)
 
-    for c in range(3):
+    for c in range(2):
       maxi = c
       for i in range(c+1, max_sort_num):
         if less(maxi, i): maxi = i
@@ -582,11 +582,21 @@ class YouCompleteMe( object ):
       if not text: return
 
       count = [0]
+      closure_pat = re.compile(r"{parenGroup}(\s*->.*)".format(parenGroup=r"\(([^)]*)\)"))
       def replaceParam(match):
           count[0] += 1
           expand = match.group(1)
           text = expand.split('##')
-          return u"${%d:%s}"%(count[0], text[ min(len(text)-1, 1) ])
+          # example:
+          # <#T##onSubscribe: RxSubscribeHandler##RxSubscribeHandler##(RxObserver) -> RxDisposableProtocol#>
+          #  if "->" in text[-1] and text[-1][0] == '(':
+          m = closure_pat.match(text[-1])
+          if m:
+              count[0] += 2
+              return u"${%d:{(${%d:%s})%s in ${%d}}}"%(count[0] -2, count[0] -1, m.group(1), m.group(2), count[0])
+          else:
+              t = text[ min(len(text)-1, 1) ]
+              return u"${%d:%s}"%(count[0], t)
 
       templ, n = re.subn(r'<#(.+?)#>', replaceParam, templ)
       #  print ( "anon:", templ, text )
