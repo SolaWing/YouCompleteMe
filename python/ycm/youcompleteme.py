@@ -347,7 +347,7 @@ class YouCompleteMe( object ):
     def less(i, j):
       return score_at(i) < score_at(j)
 
-    for c in range(2):
+    for c in range(1):
       maxi = c
       for i in range(c+1, max_sort_num):
         if less(maxi, i): maxi = i
