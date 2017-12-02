@@ -37,7 +37,7 @@ SYNTAX_GROUP_REGEX = re.compile(
       $""",
   re.VERBOSE )
 
-KEYWORD_REGEX = re.compile( r'^(\w+),?$' )
+KEYWORD_REGEX = re.compile( r'^([\w-]+),?$' )
 
 SYNTAX_ARGUMENT_REGEX = re.compile(
   r"^\w+=.*$" )
