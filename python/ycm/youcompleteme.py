@@ -145,6 +145,7 @@ class YouCompleteMe( object ):
     }
     import tempfile
     self._used_completions = UsedCompletions( os.path.join(tempfile.gettempdir(), "ycm_used_completions.sqlite") )
+    self._saw_completions  = SawCompletions()
 
   def _SetupServer( self ):
     self._available_completers = {}
@@ -327,34 +328,52 @@ class YouCompleteMe( object ):
 
   def GetCompletionResponse( self ):
     response = self._latest_completion_request.Response()
-
-    response[ 'completions' ] = self._SortByRecentUsed(response[ 'completions' ])
+    response[ 'completions' ] = self._SortByUsage(
+        response[ 'completions' ],
+        self._saw_completions.saw(self._latest_completion_request, response))
+    self._saw_completions.see(self._latest_completion_request, response)
     response[ 'completions' ] = base.AdjustCandidateInsertionText(
         response[ 'completions' ] )
     return response
 
-  def _SortByRecentUsed( self, completions ):
+  def _SortByUsage( self, completions, saw_words ):
     if not completions: return completions
+    # logging.getLogger( 'ycm' ).info("saw_words %s", saw_words) # type: logging.Logger
 
     max_sort_num = min(30, len(completions))
-    scores = self._used_completions.scoresFor( [c['word'] for c in completions[:max_sort_num]],
+    scores = self._used_completions.scoresFor([w for w in (c['word'] for c in completions[:max_sort_num])
+                                               if w not in saw_words],
                                               time())
 
-    def score_at(i):
-      w = completions[i]['word']
-      return scores.get(w, 0)
+    # logging.getLogger( 'ycm' ).info("scores %s", scores) # type: logging.Logger
 
-    def less(i, j):
-      return score_at(i) < score_at(j)
+    recent_count = 1
+    if len(scores) > 0:
+      def score_at(i):
+        w = completions[i]['word']
+        return scores.get(w, 0)
 
-    for c in range(1):
-      maxi = c
-      for i in range(c+1, max_sort_num):
-        if less(maxi, i): maxi = i
+      def less(i, j):
+        return score_at(i) < score_at(j)
 
-      if maxi > c:
-        #  self._logger.debug("move %d to %d", maxi, c)
-        completions.insert(c, completions.pop(maxi))
+      for c in range(recent_count):
+        maxi = c
+        for i in range(c+1, max_sort_num):
+          if less(maxi, i): maxi = i
+
+        if maxi > c:
+          #  self._logger.debug("move %d to %d", maxi, c)
+          completions.insert(c, completions.pop(maxi))
+
+    # sort by saw_words, seems less useful after second completions
+    # unsaw = 0
+    # for i in range(max_sort_num):
+    #     if completions[i]['word'] not in saw_words:
+    #         if i > unsaw:
+    #             completions.insert(unsaw, completions.pop(i))
+    #         if unsaw == 1: break
+    #         unsaw += 1
+
     return completions
 
 
@@ -904,6 +923,33 @@ class YouCompleteMe( object ):
         'description': snippet[ 'description' ] }
       for trigger, snippet in iteritems( snippets )
     ]
+
+
+class SawCompletions(object):
+    def __init__(self):
+        self._pos = None
+        self._saw = dict()
+
+    def saw(self, request, response):
+        d = request.request_data
+        pos = (d['line_num'], response['completion_start_column'], d['filepath'])
+        if pos != self._pos: return frozenset()
+        offset = d['column_num'] - pos[1]
+        # logging.getLogger( 'ycm' ).info("saw %d (%s)", d['column_num'], pos) # type: logging.Logger
+        return frozenset( k for (k, v) in self._saw.items() if abs(v - offset) > 1 )
+
+    def see(self, request, response):
+        d = request.request_data
+        pos = (d['line_num'], response['completion_start_column'], d['filepath'])
+        if self._pos != pos:
+            self._saw = dict()
+            self._pos = pos;
+
+        offset = d['column_num'] - pos[1]
+        for i in response['completions'][:1]:
+            self._saw.setdefault(i['word'], offset)
+        # logging.getLogger( 'ycm' ).info("see %s", self._saw) # type: logging.Logger
+
 
 class UsedCompletions(object):
     def __init__(self, path):
