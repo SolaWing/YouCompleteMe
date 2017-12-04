@@ -946,7 +946,7 @@ class SawCompletions(object):
             self._pos = pos;
 
         offset = d['column_num'] - pos[1]
-        for i in response['completions'][:1]:
+        for i in response['completions'][:2]:
             self._saw.setdefault(i['word'], offset)
         # logging.getLogger( 'ycm' ).info("see %s", self._saw) # type: logging.Logger
 
