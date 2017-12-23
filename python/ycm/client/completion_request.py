@@ -94,7 +94,7 @@ def ConvertCompletionDataToVimData( completion_data ):
 
   if 'insertion_text' in completion_data:
     vim_data[ 'word' ] = completion_data[ 'insertion_text' ]
-    vim_data[ 'abbr' ] = vim_data[ 'word' ]
+    vim_data[ 'abbr' ] = vim_data[ 'word' ] # vim completed_item always set abbr, same to match completely
   if 'menu_text' in completion_data:
       abbr = completion_data[ 'menu_text' ]
       if len(abbr) > 60: abbr = abbr[:60] + "..."

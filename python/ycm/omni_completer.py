@@ -109,7 +109,12 @@ class OmniCompleter( Completer ):
       if not hasattr( items, '__iter__' ):
         raise TypeError( OMNIFUNC_NOT_LIST )
 
-      return list( filter( bool, items ) )
+      ensure_dict = lambda i: i if isinstance(i, dict) else {
+          'word'  : i,   'abbr'  : i,
+          'dup'   : 1,   'empty' : 1,
+          'kind'  : "U",
+      }
+      return [ensure_dict(i) for i in items if bool(i)]
 
     except ( TypeError, ValueError, vim.error ) as error:
       vimsupport.PostVimMessage(
