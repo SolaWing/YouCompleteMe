@@ -58,6 +58,7 @@ flags = [
 ## 'c++11'.
 #'-std=gnu11',
 '-D__arm__',
+'-D__OBJC__=1',
 '-arch arm64',
 '-miphoneos-version-min=8.0',
 # ...and the same thing goes for the magic -x option which specifies the
@@ -222,7 +223,7 @@ def findAllHeaderDirectory(rootDirectory):
     if headerDirs:
         return headerDirs
 
-    output = subprocess.check_output(['find', '-H', rootDirectory, '-name', '*.h'],
+    output = subprocess.check_output(['find', '-L', rootDirectory, '-name', '*.h'],
                                      universal_newlines=True)
     headers = output.splitlines()
     headerDirs = set()
@@ -315,7 +316,7 @@ def FlagsForFile( filename, **kwargs ):
     if filename.endswith('.m') or filename.endswith('.c'):
         final_flags.append('-std=gnu11');
     else:
-        final_flags.append('-std=gnu++11');
+        final_flags.append('-std=gnu++14');
 
     try:
         final_flags += kwargs['client_data']['ycm_additional_flags']
