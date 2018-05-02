@@ -1,4 +1,4 @@
-# Copyright (C) 2013  Google Inc.
+# Copyright (C) 2013-2018 YouCompleteMe contributors
 #
 # This file is part of YouCompleteMe.
 #
@@ -22,10 +22,14 @@ from __future__ import absolute_import
 # Not installing aliases from python-future; it's unreliable and slow.
 from builtins import *  # noqa
 
+import logging
+from future.utils import iteritems
 from ycmd.utils import ToUnicode
-from ycm.client.base_request import ( BaseRequest, JsonFromFuture,
-                                      HandleServerException,
+from ycm.client.base_request import ( BaseRequest, DisplayServerException,
                                       MakeServerException )
+from ycm import vimsupport
+
+_logger = logging.getLogger( __name__ )
 
 
 class CompletionRequest( BaseRequest ):
@@ -33,7 +37,12 @@ class CompletionRequest( BaseRequest ):
     super( CompletionRequest, self ).__init__()
     self.request_data = request_data
     self._response_future = None
-    self._response = { 'completions': [], 'completion_start_column': -1 }
+    self._complete_done_item = None
+    self._complete_done_hooks = {
+      'cs': self._OnCompleteDone_Csharp,
+      'java': self._OnCompleteDone_FixIt,
+      'typescript': self._OnCompleteDone_FixIt,
+    }
 
 
   def Start( self ):
@@ -56,19 +65,22 @@ class CompletionRequest( BaseRequest ):
 
   def RawResponse( self ):
     if not self._response_future:
-      return self._response
+      return { 'completions': [], 'completion_start_column': -1 }
 
-    with HandleServerException( truncate = True ):
-      self._response = JsonFromFuture( self._response_future )
+    response = self.HandleFuture( self._response_future,
+                                  truncate_message = True )
+    if not response:
+      return { 'completions': [], 'completion_start_column': -1 }
 
-      # Vim may not be able to convert the 'errors' entry to its internal format
-      # so we remove it from the response.
-      errors = self._response.pop( 'errors', [] )
-      for e in errors:
-        with HandleServerException( truncate = True ):
-          raise MakeServerException( e )
+    # Vim may not be able to convert the 'errors' entry to its internal format
+    # so we remove it from the response.
+    errors = response.pop( 'errors', [] )
+    for e in errors:
+      exception = MakeServerException( e )
+      _logger.error( exception )
+      DisplayServerException( exception, truncate_message = True )
 
-    return self._response
+    return response
 
 
   def Response( self ):
@@ -78,7 +90,122 @@ class CompletionRequest( BaseRequest ):
     return response
 
 
-def ConvertCompletionDataToVimData( completion_data ):
+  def OnCompleteDone( self, reallyDone = False ):
+    if not self.Done():
+      return
+    self._complete_done_item = None
+
+    complete_done_actions = self._GetCompleteDoneHooks()
+    for action in complete_done_actions:
+      action()
+
+
+  def _GetCompleteDoneHooks( self ):
+    filetypes = vimsupport.CurrentFiletypes()
+    for key, value in iteritems( self._complete_done_hooks ):
+      if key in filetypes:
+        yield value
+
+
+  def _GetCompletionsUserMayHaveCompleted( self ):
+   if self._complete_done_item is not None:
+       return self._complete_done_item
+
+   def get():
+
+    completed_item = vimsupport.GetVariableValue( 'v:completed_item' )
+
+    # If Vim supports user_data (8.0.1493 or later), we actually know the
+    # _exact_ element that was selected, having put its index in the
+    # user_data field. Otherwise, we have to guess by matching the values in the
+    # completed item and the list of completions. Sometimes this returns
+    # multiple possibilities, which is essentially unresolvable.
+    if 'user_data' not in completed_item:
+      completions = self.RawResponse()[ 'completions' ]
+      return _FilterToMatchingCompletions( completed_item, completions )
+
+    if completed_item[ 'user_data' ]:
+      completions = self.RawResponse()[ 'completions' ]
+      return [ completions[ int( completed_item[ 'user_data' ] ) ] ]
+
+    return []
+
+   self._complete_done_item = get()
+   return self._complete_done_item
+
+
+  def _OnCompleteDone_Csharp( self ):
+    completions = self._GetCompletionsUserMayHaveCompleted()
+    namespaces = [ _GetRequiredNamespaceImport( c ) for c in completions ]
+    namespaces = [ n for n in namespaces if n ]
+    if not namespaces:
+      return
+
+    if len( namespaces ) > 1:
+      choices = [ "{0} {1}".format( i + 1, n )
+                  for i, n in enumerate( namespaces ) ]
+      choice = vimsupport.PresentDialog( "Insert which namespace:", choices )
+      if choice < 0:
+        return
+      namespace = namespaces[ choice ]
+    else:
+      namespace = namespaces[ 0 ]
+
+    vimsupport.InsertNamespace( namespace )
+
+
+  def _OnCompleteDone_FixIt( self ):
+    completions = self._GetCompletionsUserMayHaveCompleted()
+    fixit_completions = [ _GetFixItCompletion( c ) for c in completions ]
+    fixit_completions = [ f for f in fixit_completions if f ]
+    if not fixit_completions:
+      return
+
+    # If we have user_data in completions (8.0.1493 or later), then we would
+    # only ever return max. 1 completion here. However, if we had to guess, it
+    # is possible that we matched multiple completion items (e.g. for overloads,
+    # or similar classes in multiple packages). In any case, rather than
+    # prompting the user and disturbing her workflow, we just apply the first
+    # one. This might be wrong, but the solution is to use a (very) new version
+    # of Vim which supports user_data on completion items
+    fixit_completion = fixit_completions[ 0 ]
+
+    for fixit in fixit_completion:
+      vimsupport.ReplaceChunks( fixit[ 'chunks' ], silent=True )
+
+
+def _GetRequiredNamespaceImport( completion ):
+  if ( 'extra_data' not in completion
+       or 'required_namespace_import' not in completion[ 'extra_data' ] ):
+    return None
+  return completion[ 'extra_data' ][ 'required_namespace_import' ]
+
+
+def _GetFixItCompletion( completion ):
+  if ( 'extra_data' not in completion
+       or 'fixits' not in completion[ 'extra_data' ] ):
+    return None
+
+  return completion[ 'extra_data' ][ 'fixits' ]
+
+
+def _FilterToMatchingCompletions( completed_item, completions ):
+  """Filter to completions matching the item Vim said was completed"""
+  match_keys = [ 'word', 'abbr', 'menu', 'info' ]
+  matched_completions = []
+  for index, completion in enumerate( completions ):
+    item = _ConvertCompletionDataToVimData( index, completion )
+
+    def matcher( key ):
+      return ( ToUnicode( completed_item.get( key, "" ) ) ==
+               ToUnicode( item.get( key, "" ) ) )
+
+    if all( [ matcher( i ) for i in match_keys ] ):
+      matched_completions.append( completion )
+  return matched_completions
+
+
+def _ConvertCompletionDataToVimData( completion_identifier, completion_data ):
   # see :h complete-items for a description of the dictionary fields
   vim_data = {
     'word'  : '',
@@ -112,9 +239,19 @@ def ConvertCompletionDataToVimData( completion_data ):
   elif doc_string:
     vim_data[ 'info' ] = doc_string
 
+  # We store the completion item index as a string in the completion user_data.
+  # This allows us to identify the _exact_ item that was completed in the
+  # CompleteDone handler, by inspecting this item from v:completed_item
+  #
+  # We convert to string because completion user data items must be strings.
+  #
+  # Note: Not all versions of Vim support this (added in 8.0.1483), but adding
+  # the item to the dictionary is harmless in earlier Vims.
+  vim_data[ 'user_data' ] = str( completion_identifier )
+
   return vim_data
 
 
 def _ConvertCompletionDatasToVimDatas( response_data ):
-  return [ ConvertCompletionDataToVimData( x )
-           for x in response_data ]
+  return [ _ConvertCompletionDataToVimData( i, x )
+           for i, x in enumerate( response_data ) ]

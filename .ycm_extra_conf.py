@@ -343,6 +343,12 @@ def FlagsForSwift(filename, **kwargs):
         swiftfiles = findAllSwiftFiles(project_root)
         swiftfiles.remove(os.path.abspath(filename))
         final_flags += swiftfiles
-        final_flags += additionalSwiftFlags(project_root)
+        a = additionalSwiftFlags(project_root)
+        if a: final_flags += a
+        else:
+            final_flags += [
+                '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/',
+                '-target', 'x86_64-apple-ios8.0',
+            ]
 
     return { 'flags': final_flags }

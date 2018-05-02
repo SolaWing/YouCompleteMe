@@ -1,6 +1,5 @@
 # flake8: noqa: E501
-# Copyright (C) 2011-2012 Google Inc.
-#               2016-2017 YouCompleteMe contributors
+# Copyright (C) 2011-2018 YouCompleteMe contributors
 #
 # This file is part of YouCompleteMe.
 #
@@ -36,24 +35,26 @@ from subprocess import PIPE
 from time import time
 from tempfile import NamedTemporaryFile
 from ycm import base, paths, vimsupport
-from ycm.buffer import BufferDict
+from ycm.buffer import ( BufferDict,
+                         DIAGNOSTIC_UI_FILETYPES,
+                         DIAGNOSTIC_UI_ASYNC_FILETYPES )
 from ycmd import utils
 from ycmd import server_utils
 from ycmd.request_wrap import RequestWrap
 from ycm.omni_completer import OmniCompleter
 from ycm import syntax_parse
 from ycm.client.ycmd_keepalive import YcmdKeepalive
-from ycm.client.base_request import ( BaseRequest, BuildRequestData,
-                                      HandleServerException )
+from ycm.client.base_request import BaseRequest, BuildRequestData
 from ycm.client.completer_available_request import SendCompleterAvailableRequest
 from ycm.client.command_request import SendCommandRequest
-from ycm.client.completion_request import ( CompletionRequest,
-                                            ConvertCompletionDataToVimData )
+from ycm.client.completion_request import CompletionRequest
 from ycm.client.debug_info_request import ( SendDebugInfoRequest,
                                             FormatDebugInfoResponse )
 from ycm.client.omni_completion_request import OmniCompletionRequest
 from ycm.client.event_notification import SendEventNotificationAsync
 from ycm.client.shutdown_request import SendShutdownRequest
+from ycm.client.messages_request import MessagesPoll
+
 
 def PatchNoProxy():
   current_value = os.environ.get('no_proxy', '')
@@ -100,8 +101,6 @@ CORE_OUTDATED_MESSAGE = (
   'YCM core library too old; PLEASE RECOMPILE by running the install.py '
   'script. See the documentation for more details.' )
 SERVER_IDLE_SUICIDE_SECONDS = 1800  # 30 minutes
-DIAGNOSTIC_UI_FILETYPES = set( [ 'cpp', 'cs', 'c', 'objc', 'objcpp',
-                                 'typescript' ] )
 CLIENT_LOGFILE_FORMAT = 'ycm_'
 SERVER_LOGFILE_FORMAT = 'ycmd_{port}_{std}_'
 
@@ -126,32 +125,30 @@ class YouCompleteMe( object ):
     self._filetypes_with_keywords_loaded = set()
     self._ycmd_keepalive = YcmdKeepalive()
     self._server_is_ready_with_cache = False
-    self._SetupLogging()
-    self._SetupServer()
+    self._SetUpLogging()
+    self._SetUpServer()
     self._ycmd_keepalive.Start()
 
-    def clang_param_expand(self):
-        self._OnCompleteDone_Clang()
+    clang_param_expand = self._OnCompleteDone_Clang
     self._complete_really_done = False
-    self._complete_done_item = None
     self._complete_done_hooks = {
-          'cs': lambda self: self._OnCompleteDone_Csharp(),
            'c': clang_param_expand,
          'cpp': clang_param_expand,
         'objc': clang_param_expand,
       'objcpp': clang_param_expand,
-       'swift': lambda self: self._OnCompleteDone_Swift(),
-           '*': lambda self: self._OnCompleteDone_UltiSnip(),
+       'swift': self._OnCompleteDone_Swift,
+           '*': self._OnCompleteDone_UltiSnip,
     }
     import tempfile
     self._used_completions = UsedCompletions( os.path.join(tempfile.gettempdir(), "ycm_used_completions.sqlite") )
     self._saw_completions  = SawCompletions()
 
-  def _SetupServer( self ):
+  def _SetUpServer( self ):
     self._available_completers = {}
     self._user_notified_about_crash = False
     self._filetypes_with_keywords_loaded = set()
     self._server_is_ready_with_cache = False
+    self._message_poll_request = None
 
     hmac_secret = os.urandom( HMAC_SECRET_LENGTH )
     options_dict = dict( self._user_options )
@@ -202,7 +199,7 @@ class YouCompleteMe( object ):
                                           stdout = PIPE, stderr = PIPE )
 
 
-  def _SetupLogging( self ):
+  def _SetUpLogging( self ):
     def FreeFileFromOtherProcesses( file_object ):
       if utils.OnWindows():
         from ctypes import windll
@@ -246,10 +243,9 @@ class YouCompleteMe( object ):
 
 
   def CheckIfServerIsReady( self ):
-    if not self._server_is_ready_with_cache:
-      with HandleServerException( display = False ):
-        self._server_is_ready_with_cache = BaseRequest.GetDataFromHandler(
-            'ready' )
+    if not self._server_is_ready_with_cache and self.IsServerAlive():
+      self._server_is_ready_with_cache = BaseRequest().GetDataFromHandler(
+          'ready', display_message = False )
     return self._server_is_ready_with_cache
 
 
@@ -299,22 +295,19 @@ class YouCompleteMe( object ):
   def RestartServer( self ):
     vimsupport.PostVimMessage( 'Restarting ycmd server...' )
     self._ShutdownServer()
-    self._SetupServer()
+    self._SetUpServer()
 
 
   def SendCompletionRequest( self, force_semantic = False ):
     request_data = BuildRequestData()
     request_data[ 'force_semantic' ] = force_semantic
-    if ( not self.NativeFiletypeCompletionAvailable() and
-         self.CurrentFiletypeCompletionEnabled() ):
+    if not self.NativeFiletypeCompletionUsable():
       wrapped_request_data = RequestWrap( request_data )
       if self._omnicomp.ShouldUseNow( wrapped_request_data ):
         self._latest_completion_request = OmniCompletionRequest(
             self._omnicomp, wrapped_request_data )
         self._latest_completion_request.Start()
         return
-
-    request_data[ 'working_dir' ] = utils.GetCurrentDirectory()
 
     self._AddExtraConfDataIfNeeded( request_data )
     self._latest_completion_request = CompletionRequest( request_data )
@@ -377,17 +370,28 @@ class YouCompleteMe( object ):
     return completions
 
 
-  def SendCommandRequest( self, arguments, completer ):
-    extra_data = {}
+  def SendCommandRequest( self,
+                          arguments,
+                          completer,
+                          has_range,
+                          start_line,
+                          end_line ):
+    extra_data = {
+      'options': {
+        'tab_size': vimsupport.GetIntValue( 'shiftwidth()' ),
+        'insert_spaces': vimsupport.GetBoolValue( '&expandtab' )
+      }
+    }
+    if has_range:
+      extra_data.update( vimsupport.BuildRange( start_line, end_line ) )
     self._AddExtraConfDataIfNeeded( extra_data )
     return SendCommandRequest( arguments, completer, extra_data )
 
 
   def GetDefinedSubcommands( self ):
-    with HandleServerException():
-      return BaseRequest.PostDataToHandler( BuildRequestData(),
-                                            'defined_subcommands' )
-    return []
+    subcommands = BaseRequest().PostDataToHandler( BuildRequestData(),
+                                                   'defined_subcommands' )
+    return subcommands if subcommands else []
 
 
   def GetCurrentCompletionRequest( self ):
@@ -418,12 +422,67 @@ class YouCompleteMe( object ):
 
 
   def NativeFiletypeCompletionUsable( self ):
-    return ( self.CurrentFiletypeCompletionEnabled() and
+    disabled_filetypes = self._user_options[
+      'filetype_specific_completion_to_disable' ]
+    return ( vimsupport.CurrentFiletypesEnabled( disabled_filetypes ) and
              self.NativeFiletypeCompletionAvailable() )
 
 
   def NeedsReparse( self ):
     return self.CurrentBuffer().NeedsReparse()
+
+
+  def UpdateWithNewDiagnosticsForFile( self, filepath, diagnostics ):
+    bufnr = vimsupport.GetBufferNumberForFilename( filepath )
+    if bufnr in self._buffers and vimsupport.BufferIsVisible( bufnr ):
+      # Note: We only update location lists, etc. for visible buffers, because
+      # otherwise we defualt to using the curren location list and the results
+      # are that non-visible buffer errors clobber visible ones.
+      self._buffers[ bufnr ].UpdateWithNewDiagnostics( diagnostics )
+    else:
+      # The project contains errors in file "filepath", but that file is not
+      # open in any buffer. This happens for Language Server Protocol-based
+      # completers, as they return diagnostics for the entire "project"
+      # asynchronously (rather than per-file in the response to the parse
+      # request).
+      #
+      # There are a number of possible approaches for
+      # this, but for now we simply ignore them. Other options include:
+      # - Use the QuickFix list to report project errors?
+      # - Use a special buffer for project errors
+      # - Put them in the location list of whatever the "current" buffer is
+      # - Store them in case the buffer is opened later
+      # - add a :YcmProjectDiags command
+      # - Add them to errror/warning _counts_ but not any actual location list
+      #   or other
+      # - etc.
+      #
+      # However, none of those options are great, and lead to their own
+      # complexities. So for now, we just ignore these diagnostics for files not
+      # open in any buffer.
+      pass
+
+
+  def OnPeriodicTick( self ):
+    if not self.IsServerAlive():
+      # Server has died. We'll reset when the server is started again.
+      return False
+    elif not self.IsServerReady():
+      # Try again in a jiffy
+      return True
+
+    if not self._message_poll_request:
+      self._message_poll_request = MessagesPoll()
+
+    if not self._message_poll_request.Poll( self ):
+      # Don't poll again until some event which might change the server's mind
+      # about whether to provide messages for the current buffer (e.g. buffer
+      # visit, file ready to parse, etc.)
+      self._message_poll_request = None
+      return False
+
+    # Poll again in a jiffy
+    return True
 
 
   def OnFileReadyToParse( self ):
@@ -442,10 +501,12 @@ class YouCompleteMe( object ):
     self.CurrentBuffer().SendParseRequest( extra_data )
 
 
-  def OnBufferUnload( self, deleted_buffer_file ):
-    SendEventNotificationAsync(
-        'BufferUnload',
-        filepath = utils.ToUnicode( deleted_buffer_file ) )
+  def OnBufferUnload( self, deleted_buffer_number ):
+    SendEventNotificationAsync( 'BufferUnload', deleted_buffer_number )
+
+
+  def UpdateMatches( self ):
+    self.CurrentBuffer().UpdateMatches()
 
 
   def OnBufferVisit( self ):
@@ -483,7 +544,10 @@ class YouCompleteMe( object ):
 
 
   def OnCompleteDone( self ):
-    self._complete_done_item = None
+    completion_request = self.GetCurrentCompletionRequest()
+    if completion_request:
+      completion_request.OnCompleteDone(self._complete_really_done)
+
     r = self.GetCompletionsUserMayHaveCompleted()
     if r:
         #  self._logger.info("match: %s", r[0].get(u"insertion_text"))
@@ -492,7 +556,7 @@ class YouCompleteMe( object ):
     if not self._complete_really_done: return
     complete_done_actions = self.GetCompleteDoneHooks()
     for action in complete_done_actions:
-      action(self)
+      action()
     self._complete_really_done = False
 
   def _scoreValue(self, score, cur_time):
@@ -510,65 +574,9 @@ class YouCompleteMe( object ):
 
   def GetCompletionsUserMayHaveCompleted( self ):
     latest_completion_request = self.GetCurrentCompletionRequest()
-    if not latest_completion_request or not latest_completion_request.Done():
-      return []
-
-    if self._complete_done_item is not None:
-        return self._complete_done_item
-
-    completions = latest_completion_request.RawResponse().get("completions")
-
-    result = self._FilterToMatchingCompletions( completions, True )
-    result = list( result )
-
-    self._complete_done_item = result
-    return result
-
-
-  def _FilterToMatchingCompletions( self, completions, full_match_only ):
-    """Filter to completions matching the item Vim said was completed"""
-    completed = vimsupport.GetVariableValue( 'v:completed_item' )
-    #  self._logger.info("completed: %s", dict(completed))
-    #  self._logger.info("completions: %s", completions)
-    for completion in completions:
-      item = ConvertCompletionDataToVimData( completion )
-      match_keys = ( [ "word", "abbr", "menu", "info" ] if full_match_only
-                      else [ 'word' ] )
-
-      #  self._logger.info("completion: %s", item)
-      def matcher( key ):
-        return ( utils.ToUnicode( completed.get( key, "" ) ) ==
-                 utils.ToUnicode( item.get( key, "" ) ) )
-
-      if all( [ matcher( i ) for i in match_keys ] ):
-        yield completion
-
-
-  def _HasCompletionsThatCouldBeCompletedWithMoreText( self, completions ):
-    completed_item = vimsupport.GetVariableValue( 'v:completed_item' )
-    if not completed_item:
-      return False
-
-    completed_word = utils.ToUnicode( completed_item[ 'word' ] )
-    if not completed_word:
-      return False
-
-    # Sometimes CompleteDone is called after the next character is inserted.
-    # If so, use inserted character to filter possible completions further.
-    text = vimsupport.TextBeforeCursor()
-    reject_exact_match = True
-    if text and text[ -1 ] != completed_word[ -1 ]:
-      reject_exact_match = False
-      completed_word += text[ -1 ]
-
-    for completion in completions:
-      word = utils.ToUnicode(
-          ConvertCompletionDataToVimData( completion )[ 'word' ] )
-      if reject_exact_match and word == completed_word:
-        continue
-      if word.startswith( completed_word ):
-        return True
-    return False
+    if latest_completion_request:
+        return latest_completion_request._GetCompletionsUserMayHaveCompleted()
+    return []
 
 
   def _OnCompleteDone_UltiSnip(self):
@@ -655,33 +663,6 @@ class YouCompleteMe( object ):
               *map(vimsupport.EscapeForVim, (templ, text))))
           return True
 
-  def _OnCompleteDone_Csharp( self ):
-    completions = self.GetCompletionsUserMayHaveCompleted()
-    namespaces = [ self._GetRequiredNamespaceImport( c )
-                   for c in completions ]
-    namespaces = [ n for n in namespaces if n ]
-    if not namespaces:
-      return
-
-    if len( namespaces ) > 1:
-      choices = [ "{0} {1}".format( i + 1, n )
-                  for i, n in enumerate( namespaces ) ]
-      choice = vimsupport.PresentDialog( "Insert which namespace:", choices )
-      if choice < 0:
-        return
-      namespace = namespaces[ choice ]
-    else:
-      namespace = namespaces[ 0 ]
-
-    vimsupport.InsertNamespace( namespace )
-
-
-  def _GetRequiredNamespaceImport( self, completion ):
-    if ( "extra_data" not in completion
-         or "required_namespace_import" not in completion[ "extra_data" ] ):
-      return None
-    return completion[ "extra_data" ][ "required_namespace_import" ]
-
 
   def GetErrorCount( self ):
     return self.CurrentBuffer().GetErrorCount()
@@ -692,7 +673,8 @@ class YouCompleteMe( object ):
 
 
   def DiagnosticUiSupportedForCurrentFiletype( self ):
-    return any( [ x in DIAGNOSTIC_UI_FILETYPES
+    return any( [ x in DIAGNOSTIC_UI_FILETYPES or
+                  x in DIAGNOSTIC_UI_ASYNC_FILETYPES
                   for x in vimsupport.CurrentFiletypes() ] )
 
 
@@ -724,7 +706,9 @@ class YouCompleteMe( object ):
          self.NativeFiletypeCompletionUsable() ):
 
       if self.ShouldDisplayDiagnostics():
-        current_buffer.UpdateDiagnostics()
+        # Forcefuly update the location list, etc. from the parse request when
+        # doing something like :YcmDiags
+        current_buffer.UpdateDiagnostics( block is True )
       else:
         # YCM client has a hard-coded list of filetypes which are known
         # to support diagnostics, self.DiagnosticUiSupportedForCurrentFiletype()
@@ -744,6 +728,10 @@ class YouCompleteMe( object ):
       # it is our responsibility to ensure that we only apply the
       # warning/error/prompt received once (for each event).
       current_buffer.MarkResponseHandled()
+
+
+  def ShouldResendFileParseRequest( self ):
+    return self.CurrentBuffer().ShouldResendParseRequest()
 
 
   def DebugInfo( self ):
@@ -805,9 +793,20 @@ class YouCompleteMe( object ):
   def ToggleLogs( self, *filenames ):
     logfiles = self.GetLogfiles()
     if not filenames:
-      vimsupport.PostVimMessage(
-          'Available logfiles are:\n'
-          '{0}'.format( '\n'.join( sorted( list( logfiles ) ) ) ) )
+      sorted_logfiles = sorted( list( logfiles ) )
+      try:
+        logfile_index = vimsupport.SelectFromList(
+          'Which logfile do you wish to open (or close if already open)?',
+          sorted_logfiles )
+      except RuntimeError as e:
+        vimsupport.PostVimMessage( str( e ) )
+        return
+
+      logfile = logfiles[ sorted_logfiles[ logfile_index ] ]
+      if not vimsupport.BufferIsVisibleForFilename( logfile ):
+        self._OpenLogfile( logfile )
+      else:
+        self._CloseLogfile( logfile )
       return
 
     for filename in set( filenames ):
@@ -823,24 +822,13 @@ class YouCompleteMe( object ):
       self._CloseLogfile( logfile )
 
 
-  def CurrentFiletypeCompletionEnabled( self ):
-    filetypes = vimsupport.CurrentFiletypes()
-    filetype_to_disable = self._user_options[
-      'filetype_specific_completion_to_disable' ]
-    if '*' in filetype_to_disable:
-      return False
-    else:
-      return not any([ x in filetype_to_disable for x in filetypes ])
-
-
   def ShowDetailedDiagnostic( self ):
-    with HandleServerException():
-      detailed_diagnostic = BaseRequest.PostDataToHandler(
-          BuildRequestData(), 'detailed_diagnostic' )
+    detailed_diagnostic = BaseRequest().PostDataToHandler(
+        BuildRequestData(), 'detailed_diagnostic' )
 
-      if 'message' in detailed_diagnostic:
-        vimsupport.PostVimMessage( detailed_diagnostic[ 'message' ],
-                                   warning = False )
+    if 'message' in detailed_diagnostic:
+      vimsupport.PostVimMessage( detailed_diagnostic[ 'message' ],
+                                 warning = False )
 
 
   def ForceCompileAndDiagnostics( self ):
@@ -931,14 +919,16 @@ class SawCompletions(object):
         self._saw = dict()
 
     def saw(self, request, response):
+        """ return saw completions """
         d = request.request_data
         pos = (d['line_num'], response['completion_start_column'], d['filepath'])
         if pos != self._pos: return frozenset()
         offset = d['column_num'] - pos[1]
         # logging.getLogger( 'ycm' ).info("saw %d (%s)", d['column_num'], pos) # type: logging.Logger
-        return frozenset( k for (k, v) in self._saw.items() if abs(v - offset) > 1 )
+        return frozenset( word for (word, word_offset) in self._saw.items() if abs(word_offset - offset) > 1 )
 
     def see(self, request, response):
+        """ record saw completions """
         d = request.request_data
         pos = (d['line_num'], response['completion_start_column'], d['filepath'])
         if self._pos != pos:

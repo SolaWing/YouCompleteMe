@@ -24,17 +24,22 @@ from __future__ import absolute_import
 # Not installing aliases from python-future; it's unreliable and slow.
 from builtins import *  # noqa
 
-from hamcrest import assert_that, contains, contains_string, empty, has_entries
+from hamcrest import assert_that, contains, empty, has_entries
 
-from ycm.tests.test_utils import ( ExpectedFailure, MockVimBuffers,
-                                   MockVimModule, ToBytesOnPY2, VimBuffer )
+from ycm.tests.test_utils import ( MockVimBuffers, MockVimModule, ToBytesOnPY2,
+                                   VimBuffer )
 MockVimModule()
 
 from ycm import vimsupport
 from ycm.tests import YouCompleteMeInstance
 
+FILETYPE = 'ycmtest'
+TRIGGERS = {
+  'ycmtest': [ '.' ]
+}
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_Cache_List_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -43,7 +48,7 @@ def OmniCompleter_GetCompletions_Cache_List_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 5 ) ):
@@ -57,7 +62,7 @@ def OmniCompleter_GetCompletions_Cache_List_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_Cache_ListFilter_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -66,7 +71,7 @@ def OmniCompleter_GetCompletions_Cache_ListFilter_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.t' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 6 ) ):
@@ -80,7 +85,7 @@ def OmniCompleter_GetCompletions_Cache_ListFilter_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 0 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 0, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_NoCache_List_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -89,7 +94,7 @@ def OmniCompleter_GetCompletions_NoCache_List_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 5 ) ):
@@ -103,7 +108,7 @@ def OmniCompleter_GetCompletions_NoCache_List_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 0 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 0, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_NoCache_ListFilter_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -112,7 +117,7 @@ def OmniCompleter_GetCompletions_NoCache_ListFilter_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.t' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 6 ) ):
@@ -128,7 +133,7 @@ def OmniCompleter_GetCompletions_NoCache_ListFilter_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 0 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 0, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_NoCache_UseFindStart_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -137,7 +142,7 @@ def OmniCompleter_GetCompletions_NoCache_UseFindStart_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.t' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 6 ) ):
@@ -153,7 +158,7 @@ def OmniCompleter_GetCompletions_NoCache_UseFindStart_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_Cache_UseFindStart_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -162,7 +167,7 @@ def OmniCompleter_GetCompletions_Cache_UseFindStart_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.t' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 6 ) ):
@@ -178,7 +183,7 @@ def OmniCompleter_GetCompletions_Cache_UseFindStart_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_Cache_Object_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -187,7 +192,7 @@ def OmniCompleter_GetCompletions_Cache_Object_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.t' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 6 ) ):
@@ -201,7 +206,7 @@ def OmniCompleter_GetCompletions_Cache_Object_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_Cache_ObjectList_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -225,7 +230,7 @@ def OmniCompleter_GetCompletions_Cache_ObjectList_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.tt' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 7 ) ):
@@ -245,7 +250,7 @@ def OmniCompleter_GetCompletions_Cache_ObjectList_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 0 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 0, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_NoCache_ObjectList_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -269,7 +274,7 @@ def OmniCompleter_GetCompletions_NoCache_ObjectList_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.tt' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 7 ) ):
@@ -297,7 +302,7 @@ def OmniCompleter_GetCompletions_NoCache_ObjectList_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_Cache_ObjectListObject_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -321,7 +326,7 @@ def OmniCompleter_GetCompletions_Cache_ObjectListObject_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.tt' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 7 ) ):
@@ -341,7 +346,7 @@ def OmniCompleter_GetCompletions_Cache_ObjectListObject_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 0 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 0, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_NoCache_ObjectListObject_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -365,7 +370,7 @@ def OmniCompleter_GetCompletions_NoCache_ObjectListObject_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'test.tt' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 7 ) ):
@@ -393,9 +398,7 @@ def OmniCompleter_GetCompletions_NoCache_ObjectListObject_test( ycm ):
     )
 
 
-@ExpectedFailure( 'Filtering on unicode is not supported by the server',
-                  contains_string( "value for 'completions' was <[]>" ) )
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_Cache_List_Unicode_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -404,7 +407,7 @@ def OmniCompleter_GetCompletions_Cache_List_Unicode_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ '†åsty_π.' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 12 ) ):
@@ -412,15 +415,15 @@ def OmniCompleter_GetCompletions_Cache_List_Unicode_test( ycm ):
     assert_that(
       ycm.GetCompletionResponse(),
       has_entries( {
-        'completions': ToBytesOnPY2( [ '†est',
-                                       'å_unicode_identifier',
-                                       'πππππππ yummy πie' ] ),
+        'completions': [ 'å_unicode_identifier',
+                         'πππππππ yummy πie',
+                         '†est' ],
         'completion_start_column': 13
       } )
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 0 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 0, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_NoCache_List_Unicode_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -429,7 +432,7 @@ def OmniCompleter_GetCompletions_NoCache_List_Unicode_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ '†åsty_π.' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 12 ) ):
@@ -445,9 +448,7 @@ def OmniCompleter_GetCompletions_NoCache_List_Unicode_test( ycm ):
     )
 
 
-@ExpectedFailure( 'Filtering on unicode is not supported by the server',
-                  contains_string( "value for 'completions' was <[]>" ) )
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_Cache_List_Filter_Unicode_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -456,7 +457,7 @@ def OmniCompleter_GetCompletions_Cache_List_Filter_Unicode_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ '†åsty_π.ππ' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 17 ) ):
@@ -464,13 +465,13 @@ def OmniCompleter_GetCompletions_Cache_List_Filter_Unicode_test( ycm ):
     assert_that(
       ycm.GetCompletionResponse(),
       has_entries( {
-        'completions': ToBytesOnPY2( [ 'πππππππ yummy πie' ] ),
+        'completions': [ 'πππππππ yummy πie' ],
         'completion_start_column': 13
       } )
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 0 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 0, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_NoCache_List_Filter_Unicode_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -479,7 +480,7 @@ def OmniCompleter_GetCompletions_NoCache_List_Filter_Unicode_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ '†åsty_π.ππ' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 17 ) ):
@@ -493,9 +494,7 @@ def OmniCompleter_GetCompletions_NoCache_List_Filter_Unicode_test( ycm ):
     )
 
 
-@ExpectedFailure( 'Filtering on unicode is not supported by the server',
-                  contains_string( "value for 'completions' was <[]>" ) )
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_Cache_ObjectList_Unicode_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -519,7 +518,7 @@ def OmniCompleter_GetCompletions_Cache_ObjectList_Unicode_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ '†åsty_π.ππ' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 17 ) ):
@@ -527,19 +526,19 @@ def OmniCompleter_GetCompletions_Cache_ObjectList_Unicode_test( ycm ):
     assert_that(
       ycm.GetCompletionResponse(),
       has_entries( {
-        'completions': ToBytesOnPY2( [ {
+        'completions': [ {
           'word': 'π†´ß†π',
           'abbr': 'ÅııÂÊ‰ÍÊ',
           'menu': '˜‰ˆËÊ‰ÍÊ',
           'info': 'ÈˆÏØÊ‰ÍÊ',
           'kind': 'Ê'
-        } ] ),
+        } ],
         'completion_start_column': 13
       } )
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_Cache_ObjectListObject_Unicode_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -572,7 +571,7 @@ def OmniCompleter_GetCompletions_Cache_ObjectListObject_Unicode_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ '†åsty_π.t' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 13 ) ):
@@ -586,13 +585,19 @@ def OmniCompleter_GetCompletions_Cache_ObjectListObject_Unicode_test( ycm ):
           'menu': '˜‰ˆËÊ‰ÍÊ',
           'info': 'ÈˆÏØÊ‰ÍÊ',
           'kind': 'Ê'
+        }, {
+          'word': 'ålpha∫et',
+          'abbr': 'å∫∫®',
+          'menu': 'µ´~¨á',
+          'info': '^~fo',
+          'kind': '˚'
         } ),
         'completion_start_column': 13
       } )
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 1 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 1, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_RestoreCursorPositionAfterOmnifuncCall_test(
   ycm ):
 
@@ -608,7 +613,7 @@ def OmniCompleter_GetCompletions_RestoreCursorPositionAfterOmnifuncCall_test(
                               contents = [ 'String test',
                                            '',
                                            'test.' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 3, 5 ) ):
@@ -626,7 +631,7 @@ def OmniCompleter_GetCompletions_RestoreCursorPositionAfterOmnifuncCall_test(
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 0 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 0, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_NoCache_NoSemanticTrigger_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -635,7 +640,7 @@ def OmniCompleter_GetCompletions_NoCache_NoSemanticTrigger_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'te' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 3 ) ):
@@ -649,7 +654,7 @@ def OmniCompleter_GetCompletions_NoCache_NoSemanticTrigger_test( ycm ):
     )
 
 
-@YouCompleteMeInstance( { 'cache_omnifunc': 0 } )
+@YouCompleteMeInstance( { 'cache_omnifunc': 0, 'semantic_triggers': TRIGGERS } )
 def OmniCompleter_GetCompletions_NoCache_ForceSemantic_test( ycm ):
   def Omnifunc( findstart, base ):
     if findstart:
@@ -658,7 +663,7 @@ def OmniCompleter_GetCompletions_NoCache_ForceSemantic_test( ycm ):
 
   current_buffer = VimBuffer( 'buffer',
                               contents = [ 'te' ],
-                              filetype = 'java',
+                              filetype = FILETYPE,
                               omnifunc = Omnifunc )
 
   with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 3 ) ):
@@ -668,5 +673,111 @@ def OmniCompleter_GetCompletions_NoCache_ForceSemantic_test( ycm ):
       has_entries( {
         'completions': ToBytesOnPY2( [ 'test' ] ),
         'completion_start_column': 1
+      } )
+    )
+
+
+@YouCompleteMeInstance( {
+  'cache_omnifunc': 0,
+  'filetype_specific_completion_to_disable': { FILETYPE: 1 },
+  'semantic_triggers': TRIGGERS } )
+def OmniCompleter_GetCompletions_FiletypeDisabled_SemanticTrigger_test( ycm ):
+  def Omnifunc( findstart, base ):
+    if findstart:
+      return 5
+    return [ 'a', 'b', 'cdef' ]
+
+  current_buffer = VimBuffer( 'buffer',
+                              contents = [ 'test.' ],
+                              filetype = FILETYPE,
+                              omnifunc = Omnifunc )
+
+  with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 6 ) ):
+    ycm.SendCompletionRequest()
+    assert_that(
+      ycm.GetCompletionResponse(),
+      has_entries( {
+        'completions': empty(),
+        'completion_start_column': 6
+      } )
+    )
+
+
+@YouCompleteMeInstance( {
+  'cache_omnifunc': 0,
+  'filetype_specific_completion_to_disable': { '*': 1 },
+  'semantic_triggers': TRIGGERS } )
+def OmniCompleter_GetCompletions_AllFiletypesDisabled_SemanticTrigger_test(
+  ycm ):
+
+  def Omnifunc( findstart, base ):
+    if findstart:
+      return 5
+    return [ 'a', 'b', 'cdef' ]
+
+  current_buffer = VimBuffer( 'buffer',
+                              contents = [ 'test.' ],
+                              filetype = FILETYPE,
+                              omnifunc = Omnifunc )
+
+  with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 6 ) ):
+    ycm.SendCompletionRequest()
+    assert_that(
+      ycm.GetCompletionResponse(),
+      has_entries( {
+        'completions': empty(),
+        'completion_start_column': 6
+      } )
+    )
+
+
+@YouCompleteMeInstance( {
+  'cache_omnifunc': 0,
+  'filetype_specific_completion_to_disable': { FILETYPE: 1 },
+  'semantic_triggers': TRIGGERS } )
+def OmniCompleter_GetCompletions_FiletypeDisabled_ForceSemantic_test( ycm ):
+  def Omnifunc( findstart, base ):
+    if findstart:
+      return 5
+    return [ 'a', 'b', 'cdef' ]
+
+  current_buffer = VimBuffer( 'buffer',
+                              contents = [ 'test.' ],
+                              filetype = FILETYPE,
+                              omnifunc = Omnifunc )
+
+  with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 6 ) ):
+    ycm.SendCompletionRequest( force_semantic = True )
+    assert_that(
+      ycm.GetCompletionResponse(),
+      has_entries( {
+        'completions': ToBytesOnPY2( [ 'a', 'b', 'cdef' ] ),
+        'completion_start_column': 6
+      } )
+    )
+
+
+@YouCompleteMeInstance( {
+  'cache_omnifunc': 0,
+  'filetype_specific_completion_to_disable': { '*': 1 },
+  'semantic_triggers': TRIGGERS } )
+def OmniCompleter_GetCompletions_AllFiletypesDisabled_ForceSemantic_test( ycm ):
+  def Omnifunc( findstart, base ):
+    if findstart:
+      return 5
+    return [ 'a', 'b', 'cdef' ]
+
+  current_buffer = VimBuffer( 'buffer',
+                              contents = [ 'test.' ],
+                              filetype = FILETYPE,
+                              omnifunc = Omnifunc )
+
+  with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 6 ) ):
+    ycm.SendCompletionRequest( force_semantic = True )
+    assert_that(
+      ycm.GetCompletionResponse(),
+      has_entries( {
+        'completions': ToBytesOnPY2( [ 'a', 'b', 'cdef' ] ),
+        'completion_start_column': 6
       } )
     )
