@@ -38,8 +38,7 @@ from ycm import base, paths, vimsupport
 from ycm.buffer import ( BufferDict,
                          DIAGNOSTIC_UI_FILETYPES,
                          DIAGNOSTIC_UI_ASYNC_FILETYPES )
-from ycmd import utils
-from ycmd import server_utils
+from ycmd import server_utils, user_options_store, utils
 from ycmd.request_wrap import RequestWrap
 from ycm.omni_completer import OmniCompleter
 from ycm import syntax_parse
@@ -57,10 +56,10 @@ from ycm.client.messages_request import MessagesPoll
 
 
 def PatchNoProxy():
-  current_value = os.environ.get('no_proxy', '')
+  current_value = os.environ.get( 'no_proxy', '' )
   additions = '127.0.0.1,localhost'
-  os.environ['no_proxy'] = ( additions if not current_value
-                             else current_value + ',' + additions )
+  os.environ[ 'no_proxy' ] = ( additions if not current_value
+                               else current_value + ',' + additions )
 
 
 # We need this so that Requests doesn't end up using the local HTTP proxy when
@@ -110,12 +109,12 @@ HANDLE_FLAG_INHERIT = 0x00000001
 
 
 class YouCompleteMe( object ):
-  def __init__( self, user_options ):
+  def __init__( self ):
     self._available_completers = {}
-    self._user_options = user_options
+    self._user_options = None
     self._user_notified_about_crash = False
-    self._omnicomp = OmniCompleter( user_options )
-    self._buffers = BufferDict( user_options )
+    self._omnicomp = None
+    self._buffers = None
     self._latest_completion_request = None
     self._logger = logging.getLogger( 'ycm' ) # type: logging.Logger
     self._client_logfile = None
@@ -149,6 +148,14 @@ class YouCompleteMe( object ):
     self._filetypes_with_keywords_loaded = set()
     self._server_is_ready_with_cache = False
     self._message_poll_request = None
+
+    base.LoadJsonDefaultsIntoVim()
+    user_options_store.SetAll( base.BuildServerConf() )
+    self._user_options = user_options_store.GetAll()
+    self._omnicomp = OmniCompleter( self._user_options )
+    self._buffers = BufferDict( self._user_options )
+
+    self._SetLogLevel()
 
     hmac_secret = os.urandom( HMAC_SECRET_LENGTH )
     options_dict = dict( self._user_options )
@@ -212,12 +219,6 @@ class YouCompleteMe( object ):
 
     self._client_logfile = utils.CreateLogfile( CLIENT_LOGFILE_FORMAT )
 
-    log_level = self._user_options[ 'log_level' ]
-    numeric_level = getattr( logging, log_level.upper(), None )
-    if not isinstance( numeric_level, int ):
-      raise ValueError( 'Invalid log level: {0}'.format( log_level ) )
-    self._logger.setLevel( numeric_level )
-
     handler = logging.FileHandler( self._client_logfile )
 
     # On Windows and Python prior to 3.4, file handles are inherited by child
@@ -235,6 +236,14 @@ class YouCompleteMe( object ):
     handler.setFormatter( formatter )
 
     self._logger.addHandler( handler )
+
+
+  def _SetLogLevel( self ):
+    log_level = self._user_options[ 'log_level' ]
+    numeric_level = getattr( logging, log_level.upper(), None )
+    if not isinstance( numeric_level, int ):
+      raise ValueError( 'Invalid log level: {0}'.format( log_level ) )
+    self._logger.setLevel( numeric_level )
 
 
   def IsServerAlive( self ):
@@ -417,8 +426,8 @@ class YouCompleteMe( object ):
 
 
   def NativeFiletypeCompletionAvailable( self ):
-    return any( [ self.FiletypeCompleterExistsForFiletype( x ) for x in
-                  vimsupport.CurrentFiletypes() ] )
+    return any( self.FiletypeCompleterExistsForFiletype( x ) for x in
+                vimsupport.CurrentFiletypes() )
 
 
   def NativeFiletypeCompletionUsable( self ):
@@ -436,7 +445,7 @@ class YouCompleteMe( object ):
     bufnr = vimsupport.GetBufferNumberForFilename( filepath )
     if bufnr in self._buffers and vimsupport.BufferIsVisible( bufnr ):
       # Note: We only update location lists, etc. for visible buffers, because
-      # otherwise we defualt to using the curren location list and the results
+      # otherwise we default to using the current location list and the results
       # are that non-visible buffer errors clobber visible ones.
       self._buffers[ bufnr ].UpdateWithNewDiagnostics( diagnostics )
     else:
@@ -673,9 +682,9 @@ class YouCompleteMe( object ):
 
 
   def DiagnosticUiSupportedForCurrentFiletype( self ):
-    return any( [ x in DIAGNOSTIC_UI_FILETYPES or
-                  x in DIAGNOSTIC_UI_ASYNC_FILETYPES
-                  for x in vimsupport.CurrentFiletypes() ] )
+    return any( x in DIAGNOSTIC_UI_FILETYPES or
+                x in DIAGNOSTIC_UI_ASYNC_FILETYPES
+                for x in vimsupport.CurrentFiletypes() )
 
 
   def ShouldDisplayDiagnostics( self ):
@@ -826,7 +835,7 @@ class YouCompleteMe( object ):
     detailed_diagnostic = BaseRequest().PostDataToHandler(
         BuildRequestData(), 'detailed_diagnostic' )
 
-    if 'message' in detailed_diagnostic:
+    if detailed_diagnostic and 'message' in detailed_diagnostic:
       vimsupport.PostVimMessage( detailed_diagnostic[ 'message' ],
                                  warning = False )
 

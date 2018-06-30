@@ -494,10 +494,9 @@ Make sure you have Vim 7.4.1578 with Python 2 or Python 3 support.
 OpenBSD 5.5 and later have a Vim that's recent enough. You can see the version of
 Vim installed by running `vim --version`.
 
-FreeBSD 10.x comes with clang compiler but not the libraries needed to install.
+For FreeBSD 11.x, the requirement is cmake:
 
-    pkg install llvm38 boost-all boost-python-libs clang38
-    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/llvm38/lib/
+    pkg install cmake
 
 Install YouCompleteMe with [Vundle][].
 
@@ -506,17 +505,20 @@ using Vundle and the ycm_core library APIs have changed (happens
 rarely), YCM will notify you to recompile it. You should then rerun the install
 process.
 
-Install dependencies and CMake: `sudo pkg_add llvm boost cmake`
-
 Compiling YCM **with** semantic support for C-family languages:
 
     cd ~/.vim/bundle/YouCompleteMe
-    ./install.py --clang-completer --system-libclang --system-boost
+    ./install.py --clang-completer
 
 Compiling YCM **without** semantic support for C-family languages:
 
     cd ~/.vim/bundle/YouCompleteMe
-    ./install.py --system-boost
+    ./install.py
+
+If the `python` executable is not present, or the default `python` is not the
+one that should be compiled against, specify the python interpreter explicitly:
+
+    python3 install.py --clang-completer
 
 The following additional language support options are available:
 
@@ -652,7 +654,6 @@ process.
     where `<generator>` is `Unix Makefiles` on Unix systems and one of the
     following Visual Studio generators on Windows:
 
-    - `Visual Studio 12 Win64`
     - `Visual Studio 14 Win64`
     - `Visual Studio 15 Win64`
 
@@ -1030,7 +1031,7 @@ Every c-family project is different. It is not possible for YCM to guess what
 compiler flags to supply for your project. Fortunately, YCM provides a mechanism
 for you to generate the flags for a particular file with _arbitrary complexity_.
 This is achieved by requiring you to provide a Python module which implements a
-trival function which, given the file name as argument, returns a list of
+trivial function which, given the file name as argument, returns a list of
 compiler flags to use to compile that file.
 
 YCM looks for a `.ycm_extra_conf.py` file in the directory of the opened file or
@@ -1049,7 +1050,8 @@ to Clang.
 
 **NOTE**: It is highly recommended to include `-x <language>` flag to libclang.
 This is so that the correct language is detected, particularly for header files.
-Common values are `-x c` for C, `-x c++` for C++ and `-x objc` for Objective-C.
+Common values are `-x c` for C, `-x c++` for C++, `-x objc` for Objective-C, and
+`-x cuda` for CUDA.
 
 To give you an impression, if your c++ project is trivial, and your usual
 compilation command is: `g++ -Wall -Wextra -Werror -o FILE.o FILE.cc`, then the
@@ -1127,8 +1129,8 @@ supports [eclipse project files][eclipse-project],
 #### Diagnostic display - Syntastic
 
 The native support for Java includes YCM's native realtime diagnostics display.
-This can conflict with other dianostics plugins like Syntastic, so when enabling
-Java support, please **manually disable Syntastic Java diagnostics**.
+This can conflict with other diagnostics plugins like Syntastic, so when
+enabling Java support, please **manually disable Syntastic Java diagnostics**.
 
 Add the following to your `vimrc`:
 
@@ -1139,7 +1141,7 @@ let g:syntastic_java_checkers = []
 #### Diagnostic display - Eclim
 
 The native support for Java includes YCM's native realtime diagnostics display.
-This can conflict with other dianostics plugins like Eclim, so when enabling
+This can conflict with other diagnostics plugins like Eclim, so when enabling
 Java support, please **manually disable Eclim Java diagnostics**.
 
 Add the following to your `vimrc`:
@@ -1164,9 +1166,9 @@ However, if not, it is possible (easy in fact) to craft them manually, though it
 is not recommended. You're better off using gradle or maven (see below).
 
 [A simple eclipse style project example][ycmd-eclipse-project] can be found in
-the ycmd test dir. Normally all that is required is to copy these files to the
-root of your project and to edit the `.classpath` to add additional libraries,
-such as:
+the ycmd test directory. Normally all that is required is to copy these files to
+the root of your project and to edit the `.classpath` to add additional
+libraries, such as:
 
 ```xml
   <classpathentry kind="lib" path="/path/to/external/jar" />
@@ -1193,7 +1195,7 @@ The format of [pom.xml][mvn-project] files is way beyond the scope of this
 document, but we do recommend using the various tools that can generate them for
 you, if you're not familiar with them already.
 
-#### Gradle Projecs
+#### Gradle Projects
 
 Gradle projects require a [build.gradle][gradle-project]. Again, there is a
 [trivial example in ycmd's tests][ycmd-gradle-project].
@@ -1539,7 +1541,7 @@ be fixed by a call to `:YcmCompleter FixIt`, then ` (FixIt available)` is
 appended to the error or warning text. See the `FixIt` completer subcommand for
 more information.
 
-**NOTE:** The absense of ` (FixIt available)` does not strictly imply a fix-it
+**NOTE:** The absence of ` (FixIt available)` does not strictly imply a fix-it
 is not available as not all completers are able to provide this indication. For
 example, the c-sharp completer provides many fix-its but does not add this
 additional indication.
@@ -1625,13 +1627,13 @@ autocommand](#the-ycmquickfixopened-autocommand).
 
 Looks up the current line for a header and jumps to it.
 
-Supported in filetypes: `c, cpp, objc, objcpp`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda`
 
 #### The `GoToDeclaration` subcommand
 
 Looks up the symbol under the cursor and jumps to its declaration.
 
-Supported in filetypes: `c, cpp, objc, objcpp, cs, go, java, python, rust,
+Supported in filetypes: `c, cpp, objc, objcpp, cuda, cs, go, java, python, rust,
 typescript`
 
 #### The `GoToDefinition` subcommand
@@ -1643,8 +1645,8 @@ namely when the definition of the symbol is in the current translation unit. A
 translation unit consists of the file you are editing and all the files you are
 including with `#include` directives (directly or indirectly) in that file.
 
-Supported in filetypes: `c, cpp, objc, objcpp, cs, go, java, javascript, python,
-rust, typescript`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda, cs, go, java, javascript,
+python, rust, typescript`
 
 #### The `GoTo` subcommand
 
@@ -1655,8 +1657,8 @@ the current translation unit, jumps to the symbol's declaration. For
 C/C++/Objective-C, it first tries to look up the current line for a header and
 jump to it. For C#, implementations are also considered and preferred.
 
-Supported in filetypes: `c, cpp, objc, objcpp, cs, go, java, javascript, python,
-rust, typescript`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda, cs, go, java, javascript,
+python, rust, typescript`
 
 #### The `GoToImprecise` subcommand
 
@@ -1669,7 +1671,7 @@ changes since the last parse that would lead to incorrect jumps. When you're
 just browsing around your codebase, this command can spare you quite a bit of
 latency.
 
-Supported in filetypes: `c, cpp, objc, objcpp`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda`
 
 #### The `GoToReferences` subcommand
 
@@ -1722,7 +1724,8 @@ Invoking this command on `s` returns `std::string => std::basic_string<char>`
 
 **NOTE:** Causes re-parsing of the current translation unit.
 
-Supported in filetypes: `c, cpp, objc, objcpp, java, javascript, typescript`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda, java, javascript,
+typescript`
 
 #### The `GetTypeImprecise` subcommand
 
@@ -1735,7 +1738,7 @@ changes since the last parse that would lead to incorrect type. When you're
 just browsing around your codebase, this command can spare you quite a bit of
 latency.
 
-Supported in filetypes: `c, cpp, objc, objcpp`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda`
 
 #### The `GetParent` subcommand
 
@@ -1766,7 +1769,7 @@ For global declarations, the semantic parent is the translation unit.
 
 **NOTE:** Causes re-parsing of the current translation unit.
 
-Supported in filetypes: `c, cpp, objc, objcpp`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda`
 
 #### The `GetDoc` subcommand
 
@@ -1778,8 +1781,8 @@ under the cursor. Depending on the file type, this includes things like:
 * Python docstrings,
 * etc.
 
-Supported in filetypes: `c, cpp, objc, objcpp, cs, java, javascript, python,
-typescript, rust`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda, cs, java, javascript,
+python, typescript, rust`
 
 #### The `GetDocImprecise` subcommand
 
@@ -1792,7 +1795,7 @@ changes since the last parse that would lead to incorrect docs. When you're
 just browsing around your codebase, this command can spare you quite a bit of
 latency.
 
-Supported in filetypes: `c, cpp, objc, objcpp`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda`
 
 ### Refactoring Commands
 
@@ -1827,7 +1830,7 @@ indication).
 
 **NOTE:** Causes re-parsing of the current translation unit.
 
-Supported in filetypes: `c, cpp, objc, objcpp, cs, java, typescript`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda, cs, java, typescript`
 
 #### The `RefactorRename <new name>` subcommand
 
@@ -1926,7 +1929,7 @@ the server with the `:YcmRestartServer` command).
 This command clears that cache entirely. YCM will then re-query your
 `FlagsForFile` function or your compilation database as needed in the future.
 
-Supported in filetypes: `c, cpp, objc, objcpp`
+Supported in filetypes: `c, cpp, objc, objcpp, cuda`
 
 #### The `ReloadSolution` subcommand
 
@@ -2019,7 +2022,8 @@ let g:ycm_min_num_of_chars_for_completion = 1
 ```
 
 Note that after changing an option in your [vimrc script][vimrc] you have to
-restart Vim for the changes to take effect.
+restart [ycmd][] with the `:YcmRestartServer` command for the changes to take
+effect.
 
 ### The `g:ycm_min_num_of_chars_for_completion` option
 
@@ -2203,8 +2207,8 @@ or off. See the other options below for details.
 Note that YCM's diagnostics UI is only supported for C-family languages.
 
 When set, this option also makes YCM remove all Syntastic checkers set for the
-`c`, `cpp`, `objc` and `objcpp` filetypes since this would conflict with YCM's
-own diagnostics UI.
+`c`, `cpp`, `objc`, `objcpp`, and `cuda` filetypes since this would conflict
+with YCM's own diagnostics UI.
 
 If you're using YCM's identifier completer in C-family languages but cannot use
 the clang-based semantic completer for those languages _and_ want to use the GCC
@@ -2827,7 +2831,7 @@ let g:ycm_semantic_triggers =  {
   \   'objc' : ['->', '.', 're!\[[_a-zA-Z]+\w*\s', 're!^\s*[^\W\d]\w*\s',
   \             're!\[.*\]\s'],
   \   'ocaml' : ['.', '#'],
-  \   'cpp,objcpp' : ['->', '.', '::'],
+  \   'cpp,cuda,objcpp' : ['->', '.', '::'],
   \   'perl' : ['->'],
   \   'php' : ['->', '::'],
   \   'cs,java,javascript,typescript,d,python,perl6,scala,vb,elixir,go' : ['.'],
@@ -3382,6 +3386,15 @@ without using the `nested` keyword (see `:h autocmd-nested`). One of these
 plugins is [vim-nerdtree-tabs][]. You should identify which plugin is
 responsible for the issue and report it to the plugin author. Note that when
 this happens, [ycmd][] will automatically shut itself down after 30 minutes.
+
+### YCM does not work with my Anaconda Python setup
+
+Anaconda is often incompatible with the pre-built libclang used by YCM
+and therefore is not supported. The recommended way to solve this is to run
+`/path/to/real/python install.py` (for example `/usr/bin/python install.py`).
+
+If you want completion in Anaconda projects, set
+`g:ycm_python_binary_path` to point to the full path of your Anaconda python.
 
 Contributor Code of Conduct
 ---------------------------

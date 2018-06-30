@@ -57,10 +57,9 @@ def MockArbitraryBuffer( filetype ):
 
   # Arbitrary, but valid, single buffer open.
   current_buffer = VimBuffer( os.path.realpath( 'TEST_BUFFER' ),
-                              window = 1,
                               filetype = filetype )
 
-  with MockVimBuffers( [ current_buffer ], current_buffer ):
+  with MockVimBuffers( [ current_buffer ], [ current_buffer ] ):
     yield
 
 
@@ -351,7 +350,7 @@ def _Check_FileReadyToParse_Diagnostic_Warning( ycm ):
       assert_that(
         test_utils.VIM_SIGNS,
         contains(
-          VimSign( SIGN_BUFFER_ID_INITIAL_VALUE + 1, 2, 'YcmWarning', 1 )
+          VimSign( SIGN_BUFFER_ID_INITIAL_VALUE + 2, 2, 'YcmWarning', 1 )
         )
       )
       eq_( ycm.GetErrorCount(), 0 )
@@ -363,7 +362,7 @@ def _Check_FileReadyToParse_Diagnostic_Warning( ycm ):
       assert_that(
         test_utils.VIM_SIGNS,
         contains(
-          VimSign( SIGN_BUFFER_ID_INITIAL_VALUE + 1, 2, 'YcmWarning', 1 )
+          VimSign( SIGN_BUFFER_ID_INITIAL_VALUE + 2, 2, 'YcmWarning', 1 )
         )
       )
       eq_( ycm.GetErrorCount(), 0 )
@@ -390,7 +389,7 @@ def _Check_FileReadyToParse_Diagnostic_Clean( ycm ):
 
 
 @patch( 'ycm.youcompleteme.YouCompleteMe._AddUltiSnipsDataIfNeeded' )
-@YouCompleteMeInstance( { 'collect_identifiers_from_tags_files': 1 } )
+@YouCompleteMeInstance( { 'g:ycm_collect_identifiers_from_tags_files': 1 } )
 def EventNotification_FileReadyToParse_TagFiles_UnicodeWorkingDirectory_test(
     ycm, *args ):
   unicode_dir = PathToTestFile( 'uni¢𐍈d€' )
@@ -402,7 +401,7 @@ def EventNotification_FileReadyToParse_TagFiles_UnicodeWorkingDirectory_test(
   with patch( 'ycm.client.event_notification.EventNotification.'
               'PostDataToHandlerAsync' ) as post_data_to_handler_async:
     with CurrentWorkingDirectory( unicode_dir ):
-      with MockVimBuffers( [ current_buffer ], current_buffer, ( 1, 5 ) ):
+      with MockVimBuffers( [ current_buffer ], [ current_buffer ], ( 1, 5 ) ):
         ycm.OnFileReadyToParse()
 
     assert_that(
@@ -455,7 +454,7 @@ def EventNotification_BufferVisit_BuildRequestForCurrentAndUnsavedBuffers_test(
   with patch( 'ycm.client.event_notification.EventNotification.'
               'PostDataToHandlerAsync' ) as post_data_to_handler_async:
     with MockVimBuffers( [ current_buffer, modified_buffer, unmodified_buffer ],
-                         current_buffer,
+                         [ current_buffer ],
                          ( 1, 5 ) ):
       ycm.OnBufferVisit()
 
@@ -503,7 +502,8 @@ def EventNotification_BufferUnload_BuildRequestForDeletedAndUnsavedBuffers_test(
 
   with patch( 'ycm.client.event_notification.EventNotification.'
               'PostDataToHandlerAsync' ) as post_data_to_handler_async:
-    with MockVimBuffers( [ current_buffer, deleted_buffer ], current_buffer ):
+    with MockVimBuffers( [ current_buffer, deleted_buffer ],
+                         [ current_buffer ] ):
       ycm.OnBufferUnload( deleted_buffer.number )
 
   assert_that(
@@ -534,7 +534,7 @@ def EventNotification_BufferUnload_BuildRequestForDeletedAndUnsavedBuffers_test(
 @patch( 'ycm.vimsupport.CaptureVimCommand', return_value = """
 fooGroup xxx foo bar
              links to Statement""" )
-@YouCompleteMeInstance( { 'seed_identifiers_with_syntax': 1 } )
+@YouCompleteMeInstance( { 'g:ycm_seed_identifiers_with_syntax': 1 } )
 def EventNotification_FileReadyToParse_SyntaxKeywords_SeedWithCache_test(
     ycm, *args ):
 
@@ -543,7 +543,7 @@ def EventNotification_FileReadyToParse_SyntaxKeywords_SeedWithCache_test(
 
   with patch( 'ycm.client.event_notification.EventNotification.'
               'PostDataToHandlerAsync' ) as post_data_to_handler_async:
-    with MockVimBuffers( [ current_buffer ], current_buffer ):
+    with MockVimBuffers( [ current_buffer ], [ current_buffer ] ):
       ycm.OnFileReadyToParse()
       assert_that(
         # Positional arguments passed to PostDataToHandlerAsync.
@@ -569,7 +569,7 @@ def EventNotification_FileReadyToParse_SyntaxKeywords_SeedWithCache_test(
 @patch( 'ycm.vimsupport.CaptureVimCommand', return_value = """
 fooGroup xxx foo bar
              links to Statement""" )
-@YouCompleteMeInstance( { 'seed_identifiers_with_syntax': 1 } )
+@YouCompleteMeInstance( { 'g:ycm_seed_identifiers_with_syntax': 1 } )
 def EventNotification_FileReadyToParse_SyntaxKeywords_ClearCacheIfRestart_test(
     ycm, *args ):
 
@@ -578,7 +578,7 @@ def EventNotification_FileReadyToParse_SyntaxKeywords_ClearCacheIfRestart_test(
 
   with patch( 'ycm.client.event_notification.EventNotification.'
               'PostDataToHandlerAsync' ) as post_data_to_handler_async:
-    with MockVimBuffers( [ current_buffer ], current_buffer ):
+    with MockVimBuffers( [ current_buffer ], [ current_buffer ] ):
       ycm.OnFileReadyToParse()
       assert_that(
         # Positional arguments passed to PostDataToHandlerAsync.
