@@ -182,11 +182,14 @@ def IsHeaderFile( filename ):
 def isProjectRoot(directory):
     return os.path.exists(os.path.join(directory, '.git'))
 
-def pchFileInDir(directory):
+def fileInDir(directory, contains):
     for f in os.listdir(directory):
-        if f.endswith('.pch'): return os.path.join(directory, f)
+        if contains(f): return os.path.join(directory, f)
 
     return None
+
+def pchFileInDir(directory):
+    return fileInDir(directory, lambda f: f.endswith('.pch'))
 
 def findProjectRootAndPchFile(filename):
     """ return project root or None. if not found"""
@@ -210,11 +213,13 @@ def additionalFlags(root):
             return list(filter( bool, (line.strip() for line in f) ))
     return []
 
-def additionalSwiftFlags(root):
-    flagsPath = os.path.join(root, '.swiftflags')
-    if os.path.isfile(flagsPath):
+def additionalSwiftFlags(flagsPath):
+    # flagsPath = os.path.join(root, '.swiftflags')
+    if flagsPath and os.path.isfile(flagsPath):
+        def valid(s):
+            return s and not s.startswith('#')
         with open(flagsPath) as f:
-            return list(filter( bool, (line.strip() for line in f) ))
+            return list(filter( valid, (line.strip() for line in f) ))
     return []
 
 headerDirsCacheDict = dict()
@@ -330,20 +335,38 @@ def FlagsForFile( filename, **kwargs ):
     'do_cache': True
   }
 
+def findSwiftModuleRoot(filename):
+    """ return project root or None. if not found"""
+    filename = os.path.abspath(filename)
+    directory = os.path.dirname(filename)
+    flagFile = None
+    while directory and directory != '/':
+        # try to find a flagFile in parent directory
+        # if flagFile is None:
+        p = os.path.join(directory, ".swiftflags")
+        if os.path.isfile(p):
+            return (directory, p) # use swiftflags file as module root directory
+
+        if isProjectRoot(directory): break
+        else: directory = os.path.dirname(directory)
+    else:
+        return (None, None)
+
+    return (directory, flagFile)
 
 def FlagsForSwift(filename, **kwargs):
     final_flags = []
-    project_root, pchFile = findProjectRootAndPchFile(filename)
+    project_root, flagFile = findSwiftModuleRoot(filename)
     if project_root:
         headers, frameworks = findAllHeaderDirectory(project_root)
         for h in headers:
-            final_flags += ['-Xcc', '-I' + escapeSpace(h)]
+            final_flags += ['-Xcc', '-I' + h]
         for f in frameworks:
-            final_flags.append( '-F'+escapeSpace(f) )
+            final_flags.append( '-F' + f )
         swiftfiles = findAllSwiftFiles(project_root)
         swiftfiles.remove(os.path.abspath(filename))
         final_flags += swiftfiles
-        a = additionalSwiftFlags(project_root)
+        a = additionalSwiftFlags(flagFile)
         if a: final_flags += a
         else:
             final_flags += [
@@ -351,4 +374,8 @@ def FlagsForSwift(filename, **kwargs):
                 '-target', 'x86_64-apple-ios8.0',
             ]
 
-    return { 'flags': final_flags }
+    # return { 'flags': final_flags }
+    return {
+        'flags': final_flags,
+        'do_cache': True
+    }
