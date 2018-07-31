@@ -335,50 +335,100 @@ def FlagsForFile( filename, **kwargs ):
     'do_cache': True
   }
 
+def filterArgs(f, items):
+    """
+    f: should return True to accept, return number to skip next number flags
+    """
+    it = iter(items)
+    try:
+      while True:
+        i = next(it)
+        r = f(i)
+        if r is True:
+            yield i; continue
+        if r > 0: # skip number arg, normal will be 1
+            [next(it) for _ in range(r)]
+    except StopIteration as e:
+        pass
+
+def validFlags(flag):
+    if flag in {"-primary-file", "-o", "-serialize-diagnostics-path"}: return 1
+    if flag.startswith("-emit"): return 1
+    if flag in {"-frontend", "-c"}: return 0
+    return True
+
 def findSwiftModuleRoot(filename):
     """ return project root or None. if not found"""
     filename = os.path.abspath(filename)
     directory = os.path.dirname(filename)
     flagFile = None
+    compileFile = None
     while directory and directory != '/':
-        # try to find a flagFile in parent directory
-        # if flagFile is None:
         p = os.path.join(directory, ".swiftflags")
         if os.path.isfile(p):
-            return (directory, p) # use swiftflags file as module root directory
+            return (directory, p, compileFile) # prefer use swiftflags file as module root directory
+
+        if compileFile is None:
+            p = os.path.join(directory, ".compile")
+            if os.path.isfile(p): compileFile = p
 
         if isProjectRoot(directory): break
         else: directory = os.path.dirname(directory)
     else:
-        return (None, None)
+        return (None, flagFile, compileFile)
 
-    return (directory, flagFile)
+    return (directory, flagFile, compileFile)
+
+compileFileCache = {}
+
+def CommandForSwiftInCompile(filename, compileFile):
+    info = compileFileCache.get(compileFile)
+    if info is None:
+        info = {}
+        compileFileCache[compileFile] = info # cache first to avoid re enter when error
+
+        import json
+        with open(compileFile) as f:
+            m = json.load(f) # type: list
+            info.update( (i["file"],i["command"]) # now not use other argument, like cd
+                        for i in m
+                        if "file" in i and "command" in i )
+    return info.get(filename, "")
 
 def FlagsForSwift(filename, **kwargs):
+    filename = os.path.abspath(filename)
     final_flags = []
-    project_root, flagFile = findSwiftModuleRoot(filename)
-    if project_root:
+    project_root, flagFile, compileFile = findSwiftModuleRoot(filename)
+    if compileFile:
+        command = CommandForSwiftInCompile(filename, compileFile)
+        if command:
+            import re
+            splitBySpaces = re.compile(r"(?:\\ |\S)+")
+            flags = splitBySpaces.findall(command)[1:] # ignore executable
+            final_flags = list(filterArgs(validFlags, flags))
+    if not final_flags and project_root:
         headers, frameworks = findAllHeaderDirectory(project_root)
         for h in headers:
             final_flags += ['-Xcc', '-I' + h]
         for f in frameworks:
             final_flags.append( '-F' + f )
         swiftfiles = findAllSwiftFiles(project_root)
-        swiftfiles.remove(os.path.abspath(filename))
+        swiftfiles.remove(filename)
         final_flags += swiftfiles
         a = additionalSwiftFlags(flagFile)
-        if a: final_flags += a
+        if a:
+            a = list(filterArgs(validFlags, a))
+            final_flags += a
         else:
             final_flags += [
                 '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/',
                 '-target', 'x86_64-apple-ios8.0',
             ]
-    else:
-        final_flags += [
+    if not final_flags:
+        final_flags = [
             '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/',
             '-target', 'x86_64-apple-ios8.0',
         ]
-
 
     # return { 'flags': final_flags }
     return {
