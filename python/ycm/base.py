@@ -100,6 +100,9 @@ def AdjustCandidateInsertionText( candidates ):
   """
 
   def NewCandidateInsertionText( to_insert, text_after_cursor ):
+    # avoid trim auto insert ), eg: in swift
+    if text_after_cursor[0] == ")":
+        return to_insert
     overlap_len = OverlapLength( to_insert, text_after_cursor )
     if overlap_len:
       return to_insert[ :-overlap_len ]

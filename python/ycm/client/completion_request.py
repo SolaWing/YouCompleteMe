@@ -126,8 +126,10 @@ class CompletionRequest( BaseRequest ):
 
     if completed_item[ 'user_data' ]:
       completions = self.RawResponse()[ 'completions' ]
-      return [ completions[ int( completed_item[ 'user_data' ] ) ] ]
-
+      try:
+          return [ completions[ int( completed_item[ 'user_data' ] ) ] ]
+      except IndexError:
+          pass
     return []
 
    self._complete_done_item = get()
