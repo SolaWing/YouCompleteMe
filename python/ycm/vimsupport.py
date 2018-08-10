@@ -34,6 +34,9 @@ from ycmd.utils import ( ByteOffsetToCodepointOffset, GetCurrentDirectory,
 from ycmd import user_options_store
 
 BUFFER_COMMAND_MAP = { 'same-buffer'      : 'edit',
+                       'split'            : 'split',
+                       # These commands are obsolete. :vertical or :tab should
+                       # be used with the 'split' command instead.
                        'horizontal-split' : 'split',
                        'vertical-split'   : 'vsplit',
                        'new-tab'          : 'tabedit' }
@@ -438,18 +441,33 @@ def EscapeFilepathForVimCommand( filepath ):
   return GetVariableValue( to_eval )
 
 
-# Both |line| and |column| need to be 1-based
-# when no column, first is byte offset
-def TryJumpLocationInOpenedTab( filename, line, column):
-  filepath = os.path.realpath( filename )
+def JumpCursor(line, column):
+    if column is None: vim.command('%dgo'%(line+1)) # when column, the first is byte offset, zero-base
+    else: vim.current.window.cursor = ( line, column - 1 )
 
+# Both |line| and |column| need to be 1-based
+def TryJumpLocationInTab( tab, filename, line, column ):
+  for win in tab.windows:
+    if GetBufferFilepath( win.buffer ) == filename:
+      vim.current.tabpage = tab
+      vim.current.window = win
+      JumpCursor(line, column)
+
+      # Center the screen on the jumped-to location
+      vim.command( 'normal! zz' )
+      return True
+  # 'filename' is not opened in this tab page
+  return False
+
+
+# Both |line| and |column| need to be 1-based
+def TryJumpLocationInTabs( filename, line, column ):
   for tab in vim.tabpages:
     for win in tab.windows:
       if GetBufferFilepath( win.buffer ) == filepath:
         vim.current.tabpage = tab
         vim.current.window = win
-        if column is None: vim.command('%dgo'%(line+1))
-        else: vim.current.window.cursor = ( line, column - 1 )
+        JumpCursor(line, column)
 
         # Center the screen on the jumped-to location
         vim.command( 'normal! zz' )
@@ -466,8 +484,36 @@ def GetVimCommand( user_command, default = 'edit' ):
   return vim_command
 
 
+def JumpToFile( filename, command, modifiers ):
+  vim_command = BUFFER_COMMAND_MAP.get( command, 'edit' )
+  try:
+    escaped_filename = EscapeFilepathForVimCommand( filename )
+    try:
+      vim.command( 'keepjumps {} {} {}'.format( modifiers,
+                                                vim_command,
+                                                escaped_filename ) )
+    except vim.error as e:
+      if vim_command == 'edit': # first try, when two same buffer, can jump to another file success
+        vim.command( 'keepjumps {} {} {}'.format(modifiers, 'split', escaped_filename ) )
+      else:
+        raise
+  # When the file we are trying to jump to has a swap file
+  # Vim opens swap-exists-choices dialog and throws vim.error with E325 error,
+  # or KeyboardInterrupt after user selects one of the options.
+  except vim.error as e:
+    if 'E325' not in str( e ):
+      raise
+    # Do nothing if the target file is still not opened (user chose (Q)uit).
+    if filename != GetCurrentBufferFilepath():
+      return False
+  # Thrown when user chooses (A)bort in .swp message box.
+  except KeyboardInterrupt:
+    return False
+  return True
+
+
 # Both |line| and |column| need to be 1-based
-def JumpToLocation( filename, line, column = None):
+def JumpToLocation( filename, line, column = None, modifiers=[]):
   # Add an entry to the jumplist
   vim.command( "normal! m'" )
 
@@ -480,33 +526,25 @@ def JumpToLocation( filename, line, column = None):
     # jumplist.
     user_command = user_options_store.Value( 'goto_buffer_command' )
 
+    if user_command == 'split-or-existing-window':
+      if 'tab' in modifiers:
+        if TryJumpLocationInTabs( filename, line, column ):
+          return
+      elif TryJumpLocationInTab( vim.current.tabpage, filename, line, column ):
+        return
+      user_command = 'split'
+
+    # This command is kept for backward compatibility. :tab should be used with
+    # the 'split-or-existing-window' command instead.
     if user_command == 'new-or-existing-tab':
-      if TryJumpLocationInOpenedTab( filename, line, column):
+      if TryJumpLocationInTabs( filename, line, column ):
         return
       user_command = 'new-tab'
 
-    vim_command = BUFFER_COMMAND_MAP.get( user_command, 'edit' )
-    try:
-      escaped_filename = EscapeFilepathForVimCommand( filename )
-      if vim_command == 'edit':
-        try:
-            vim.command( 'keepjumps {0} {1}'.format( 'edit', escaped_filename ) )
-        except vim.error as e:
-            vim.command( 'keepjumps {0} {1}'.format( 'split', escaped_filename ) )
-      else:
-        vim.command( 'keepjumps {0} {1}'.format( vim_command, escaped_filename ) )
-    except vim.error as e:
-      if 'E325' not in str( e ):
-        raise
-      # Do nothing if the target file is still not opened (user chose (Q)uit)
-      if filename != GetCurrentBufferFilepath():
-        return
-    # Thrown when user chooses (A)bort in .swp message box
-    except KeyboardInterrupt:
+    if not JumpToFile( filename, user_command, modifiers ):
       return
 
-  if column is None: vim.command('%dgo'%(line+1))
-  else: vim.current.window.cursor = ( line, column - 1 )
+  JumpCursor(line,column)
 
   # Center the screen on the jumped-to location
   vim.command( 'normal! zz' )
