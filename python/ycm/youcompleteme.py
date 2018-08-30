@@ -618,7 +618,7 @@ class YouCompleteMe( object ):
       if not text: return
 
       count = [0]
-      closure_pat = re.compile(r"{parenGroup}(\s*->.*)".format(parenGroup=r"\(([^)]*)\)"))
+      # closure_pat = re.compile(r"{parenGroup}(\s*->.*)".format(parenGroup=r"\(([^)]*)\)"))
       def replaceParam(match):
           count[0] += 1
           expand = match.group(1)
@@ -626,13 +626,15 @@ class YouCompleteMe( object ):
           # example:
           # <#T##onSubscribe: RxSubscribeHandler##RxSubscribeHandler##(RxObserver) -> RxDisposableProtocol#>
           #  if "->" in text[-1] and text[-1][0] == '(':
-          m = closure_pat.match(text[-1])
-          if m:
-              count[0] += 2
-              return u"${%d:{(${%d:%s})%s in${%d}}}"%(count[0] -2, count[0] -1, m.group(1), m.group(2), count[0])
-          else:
-              t = text[ min(len(text)-1, 1) ]
-              return u"${%d:%s}"%(count[0], t)
+
+          # don't expand closure when complete, expand it use filetype mapping
+          # m = closure_pat.match(text[-1])
+          # if m:
+          #     count[0] += 2
+          #     return u"${%d:{(${%d:%s})%s in${%d}}}"%(count[0] -2, count[0] -1, m.group(1), m.group(2), count[0])
+          # else:
+          t = text[ min(len(text)-1, 1) ]
+          return u"${%d:%s}"%(count[0], t)
 
       templ, n = re.subn(r'<#(.+?)#>', replaceParam, templ)
       #  print ( "anon:", templ, text )
