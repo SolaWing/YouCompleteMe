@@ -633,7 +633,7 @@ class YouCompleteMe( object ):
           #     count[0] += 2
           #     return u"${%d:{(${%d:%s})%s in${%d}}}"%(count[0] -2, count[0] -1, m.group(1), m.group(2), count[0])
           # else:
-          t = text[ min(len(text)-1, 1) ]
+          t = text[-1]
           return u"${%d:%s}"%(count[0], t)
 
       templ, n = re.subn(r'<#(.+?)#>', replaceParam, templ)
