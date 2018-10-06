@@ -622,9 +622,9 @@ def OmniCompleter_GetCompletions_RestoreCursorPositionAfterOmnifuncCall_test(
   # This omnifunc moves the cursor to the test definition like
   # ccomplete#Complete would.
   def Omnifunc( findstart, base ):
+    vimsupport.SetCurrentLineAndColumn( 0, 0 )
     if findstart:
       return 5
-    vimsupport.SetCurrentLineAndColumn( 0, 0 )
     return [ 'length' ]
 
   current_buffer = VimBuffer( 'buffer',
@@ -647,6 +647,78 @@ def OmniCompleter_GetCompletions_RestoreCursorPositionAfterOmnifuncCall_test(
         'completion_start_column': 6
       } )
     )
+
+
+@YouCompleteMeInstance( { 'g:ycm_cache_omnifunc': 1,
+                          'g:ycm_semantic_triggers': TRIGGERS } )
+def OmniCompleter_GetCompletions_MoveCursorPositionAtStartColumn_test( ycm ):
+  # This omnifunc relies on the cursor being moved at the start column when
+  # called the second time like LanguageClient#complete from the
+  # LanguageClient-neovim plugin.
+  def Omnifunc( findstart, base ):
+    if findstart:
+      return 5
+    if vimsupport.CurrentColumn() == 5:
+      return [ 'length' ]
+    return []
+
+  current_buffer = VimBuffer( 'buffer',
+                              contents = [ 'String test',
+                                           '',
+                                           'test.le' ],
+                              filetype = FILETYPE,
+                              omnifunc = Omnifunc )
+
+  with MockVimBuffers( [ current_buffer ], [ current_buffer ], ( 3, 7 ) ):
+    ycm.SendCompletionRequest()
+    assert_that(
+      vimsupport.CurrentLineAndColumn(),
+      contains( 2, 7 )
+    )
+    assert_that(
+      ycm.GetCompletionResponse(),
+      has_entries( {
+        'completions': ToBytesOnPY2( [ 'length' ] ),
+        'completion_start_column': 6
+      } )
+    )
+
+
+@YouCompleteMeInstance( { 'g:ycm_cache_omnifunc': 1 } )
+def StartColumnCompliance( ycm,
+                           omnifunc_start_column,
+                           ycm_completions,
+                           ycm_start_column ):
+  def Omnifunc( findstart, base ):
+    if findstart:
+      return omnifunc_start_column
+    return [ 'foo' ]
+
+  current_buffer = VimBuffer( 'buffer',
+                              contents = [ 'fo' ],
+                              filetype = FILETYPE,
+                              omnifunc = Omnifunc )
+
+  with MockVimBuffers( [ current_buffer ], [ current_buffer ], ( 1, 2 ) ):
+    ycm.SendCompletionRequest( force_semantic = True )
+    assert_that(
+      ycm.GetCompletionResponse(),
+      has_entries( {
+        'completions': ToBytesOnPY2( ycm_completions ),
+        'completion_start_column': ycm_start_column
+      } )
+    )
+
+
+def OmniCompleter_GetCompletions_StartColumnCompliance_test():
+  yield StartColumnCompliance, -4, [ 'foo' ], 3
+  yield StartColumnCompliance, -3, [],        1
+  yield StartColumnCompliance, -2, [],        1
+  yield StartColumnCompliance, -1, [ 'foo' ], 3
+  yield StartColumnCompliance,  0, [ 'foo' ], 1
+  yield StartColumnCompliance,  1, [ 'foo' ], 2
+  yield StartColumnCompliance,  2, [ 'foo' ], 3
+  yield StartColumnCompliance,  3, [ 'foo' ], 3
 
 
 @YouCompleteMeInstance( { 'g:ycm_cache_omnifunc': 0,

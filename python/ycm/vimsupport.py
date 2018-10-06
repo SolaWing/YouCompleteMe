@@ -364,12 +364,20 @@ def OpenQuickFixList( focus = False, autoclose = False ):
     JumpToPreviousWindow()
 
 
-def SetFittingHeightForCurrentWindow():
-  window_width = GetIntValue( 'winwidth( 0 )' )
+def ComputeFittingHeightForCurrentWindow():
+  current_window = vim.current.window
+  if not current_window.options[ 'wrap' ]:
+    return len( vim.current.buffer )
+
+  window_width = current_window.width
   fitting_height = 0
   for line in vim.current.buffer:
     fitting_height += len( line ) // window_width + 1
-  vim.command( '{0}wincmd _'.format( fitting_height ) )
+  return fitting_height
+
+
+def SetFittingHeightForCurrentWindow():
+  vim.command( '{0}wincmd _'.format( ComputeFittingHeightForCurrentWindow() ) )
 
 
 def ConvertDiagnosticsToQfList( diagnostics ):
@@ -964,12 +972,24 @@ def ReplaceChunk( start, end, replacement_text, vim_buffer ):
   # NOTE: Vim buffers are a list of byte objects on Python 2 but unicode
   # objects on Python 3.
   start_existing_text = ToBytes( vim_buffer[ start_line ] )[ : start_column ]
-  end_existing_text = ToBytes( vim_buffer[ end_line ] )[ end_column : ]
+  end_line_text = ToBytes( vim_buffer[ end_line ] )
+  end_existing_text = end_line_text[ end_column : ]
 
   replacement_lines[ 0 ] = start_existing_text + replacement_lines[ 0 ]
   replacement_lines[ -1 ] = replacement_lines[ -1 ] + end_existing_text
 
+  cursor_line, cursor_column = CurrentLineAndColumn()
+
   vim_buffer[ start_line : end_line + 1 ] = replacement_lines[ : ]
+
+  # When the cursor position is on the last line in the replaced area, and ends
+  # up somewhere after the end of the new text, we need to reset the cursor
+  # position. This is because Vim doesn't know where to put it, and guesses
+  # badly. We put it at the end of the new text.
+  if cursor_line == end_line and cursor_column >= end_column:
+    cursor_line = start_line + len( replacement_lines ) - 1
+    cursor_column += len( replacement_lines[ - 1 ] ) - len( end_line_text )
+    SetCurrentLineAndColumn( cursor_line, cursor_column )
 
   return {
     'bufnr': vim_buffer.number,
@@ -1245,3 +1265,16 @@ def SwitchWindow( window ):
   the CurrentWindow context if you are going to switch back to the original
   window."""
   vim.current.window = window
+
+
+# Expects version_string in 'MAJOR.MINOR.PATCH' format, e.g. '8.1.278'
+def VimVersionAtLeast( version_string ):
+  major, minor, patch = ( int( x ) for x in version_string.split( '.' ) )
+
+  # For Vim 8.1.278, v:version is '801'
+  actual_major_and_minor = GetIntValue( 'v:version' )
+  matching_major_and_minor = major * 100 + minor
+  if actual_major_and_minor != matching_major_and_minor:
+    return actual_major_and_minor > matching_major_and_minor
+
+  return GetBoolValue( "has( 'patch{0}' )".format( patch ) )

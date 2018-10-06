@@ -30,150 +30,7 @@
 # For more information, please refer to <http://unlicense.org/>
 
 import os
-import ycm_core
 import subprocess
-
-# These are the compilation flags that will be used in case there's no
-# compilation database set (by default, one is not set).
-# CHANGE THIS LIST OF FLAGS. YES, THIS IS THE DROID YOU HAVE BEEN LOOKING FOR.
-
-src = os.path.dirname( os.path.abspath( __file__ ) )
-
-flags = [
-'-Wall',
-'-Wextra',
-##'-Wc++98-compat',
-'-Wno-long-long',
-'-Wno-variadic-macros',
-'-Wno-nullability-completeness',
-'-fexceptions',
-##'-DNDEBUG',
-##'-DNS_BLOCK_ASSERTIONS=1',
-'-DDEBUG=1',
-## THIS IS IMPORTANT! Without a "-std=<something>" flag, clang won't know which
-## language to use when compiling headers. So it will guess. Badly. So C++
-## headers will be compiled as C headers. You don't want that so ALWAYS specify
-## a "-std=<something>".
-## For a C project, you would set this to something like 'c99' instead of
-## 'c++11'.
-#'-std=gnu11',
-'-D__arm__',
-'-D__OBJC__=1',
-'-arch arm64',
-'-miphoneos-version-min=8.0',
-# ...and the same thing goes for the magic -x option which specifies the
-# language that the files to be compiled are written in. This is mostly
-# relevant for c++ headers.
-# For a C project, you would set this to 'c' instead of 'c++'.
-'-x',
-'objective-c++',
-'-isystem','/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/include',
-'-iframework/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks',
-'-iframework/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks',
-'-isystem',
-'/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/c++/v1',
-'-isystem',
-'/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include',
-#  '-isystem', os.path.join( src, "third_party/ycmd/clang_includes/include" ),
-#'-I%s'%src,
-#'-ObjC++',
-'-fobjc-arc',
-#'-fmessage-length=0',
-#'-Os',
-#'-fobjc-abi-version=2',
-#  '-fmodules',
-'-fpascal-strings',
-'-fstrict-aliasing',
-#warnings
-#'-Wno-trigraphs',
-#'-Wno-missing-field-initializers',
-#'-Wno-missing-prototypes',
-#'-Werror=return-type',
-#'-Wno-implicit-atomic-properties',
-#'-Werror=deprecated-objc-isa-usage',
-#'-Werror=objc-root-class',
-#'-Wno-receiver-is-weak',
-#'-Wno-arc-repeated-use-of-weak',
-#'-Wduplicate-method-match',
-#'-Wno-missing-braces',
-#'-Wparentheses',
-#'-Wswitch',
-#'-Wunused-function',
-#'-Wno-unused-label',
-'-Wno-unused-parameter',
-#'-Wunused-variable',
-#'-Wunused-value',
-#'-Wempty-body',
-#'-Wconditional-uninitialized',
-#'-Wno-unknown-pragmas',
-#'-Wno-shadow',
-#'-Wno-four-char-constants',
-#'-Wno-conversion',
-#'-Wconstant-conversion',
-#'-Wint-conversion',
-#'-Wbool-conversion',
-#'-Wenum-conversion',
-#'-Wshorten-64-to-32',
-#'-Wpointer-sign',
-#'-Wno-newline-eof',
-#'-Wno-selector',
-#'-Wno-strict-selector-match',
-#'-Wundeclared-selector',
-#'-Wno-deprecated-implementations',
-#'-Wprotocol',
-#'-Wdeprecated-declarations',
-#'-Wno-sign-conversion',
-]
-
-
-# Set this to the absolute path to the folder (NOT the file!) containing the
-# compile_commands.json file to use that instead of 'flags'. See here for
-# more details: http://clang.llvm.org/docs/JSONCompilationDatabase.html
-#
-# Most projects will NOT need to set this to anything; you can just change the
-# 'flags' list of compilation flags. Notice that YCM itself uses that approach.
-compilation_database_folder = ''
-#compilation_database_folder = ''
-
-if os.path.exists( compilation_database_folder ):
-  database = ycm_core.CompilationDatabase( compilation_database_folder )
-else:
-  database = None
-
-SOURCE_EXTENSIONS = [ '.cpp', '.cxx', '.cc', '.c', '.m', '.mm' ]
-
-def DirectoryOfThisScript():
-  return os.path.dirname( os.path.abspath( __file__ ) )
-
-
-def MakeRelativePathsInFlagsAbsolute( flags, working_directory ):
-  if not working_directory:
-    return list( flags )
-  new_flags = []
-  make_next_absolute = False
-  path_flags = [ '-isystem', '-I', '-iquote', '--sysroot=' ]
-  for flag in flags:
-    new_flag = flag
-
-    if make_next_absolute:
-      make_next_absolute = False
-      if not flag.startswith( '/' ):
-        new_flag = os.path.join( working_directory, flag )
-
-    for path_flag in path_flags:
-      if flag == path_flag:
-        make_next_absolute = True
-        break
-
-      if flag.startswith( path_flag ):
-        path = flag[ len( path_flag ): ]
-        new_flag = path_flag + os.path.join( working_directory, path )
-        break
-
-    if new_flag:
-      new_flags.append( new_flag )
-  return new_flags
-
 
 def IsHeaderFile( filename ):
   extension = os.path.splitext( filename )[ 1 ]
@@ -231,29 +88,49 @@ def escapeSpace( s ):
     return s.replace(' ', r'\ ')
 
 def FlagsForFile( filename, **kwargs ):
-  if database:
-    # Bear in mind that compilation_info.compiler_flags_ does NOT return a
-    # python list, but a "list-like" StringVec object
-    compilation_info = GetCompilationInfoForFile( filename )
-    if not compilation_info:
-      return None
-
-    final_flags = MakeRelativePathsInFlagsAbsolute(
-      compilation_info.compiler_flags_,
-      compilation_info.compiler_working_dir_ )
-
-    # NOTE: This is just for YouCompleteMe; it's highly likely that your project
-    # does NOT need to remove the stdlib flag. DO NOT USE THIS IN YOUR
-    # ycm_extra_conf IF YOU'RE NOT 100% SURE YOU NEED IT.
-    try:
-      final_flags.remove( '-stdlib=libc++' )
-    except ValueError:
-      pass
-  else:
-   #  with open("/tmp/flags", "a") as out:
-    # relative_to = DirectoryOfThisScript()
-    # final_flags = MakeRelativePathsInFlagsAbsolute( flags, relative_to )
-    final_flags = flags[:] #!! final_flags = []
+    flags = [
+    '-Wall',
+    '-Wextra',
+    ##'-Wc++98-compat',
+    '-Wno-long-long',
+    '-Wno-variadic-macros',
+    '-Wno-nullability-completeness',
+    '-fexceptions',
+    ##'-DNDEBUG',
+    ##'-DNS_BLOCK_ASSERTIONS=1',
+    '-DDEBUG=1',
+    ## THIS IS IMPORTANT! Without a "-std=<something>" flag, clang won't know which
+    ## language to use when compiling headers. So it will guess. Badly. So C++
+    ## headers will be compiled as C headers. You don't want that so ALWAYS specify
+    ## a "-std=<something>".
+    ## For a C project, you would set this to something like 'c99' instead of
+    ## 'c++11'.
+    #'-std=gnu11',
+    '-D__arm__',
+    '-D__OBJC__=1',
+    '-arch arm64',
+    '-miphoneos-version-min=8.0',
+    # ...and the same thing goes for the magic -x option which specifies the
+    # language that the files to be compiled are written in. This is mostly
+    # relevant for c++ headers.
+    # For a C project, you would set this to 'c' instead of 'c++'.
+    '-x',
+    'objective-c++',
+    '-isystem','/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/include',
+    '-iframework/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks',
+    '-iframework/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks',
+    '-isystem',
+    '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/c++/v1',
+    '-isystem',
+    '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include',
+    '-fobjc-arc',
+    #'-fobjc-abi-version=2',
+    #  '-fmodules',
+    '-fpascal-strings',
+    '-fstrict-aliasing',
+    '-Wno-unused-parameter',
+    ]
+    final_flags = flags
 
     # find all headers in file project
     project_root, pchFile = findProjectRootAndPchFile(filename)
@@ -285,10 +162,10 @@ def FlagsForFile( filename, **kwargs ):
 
     #  print("final_flags:\n", final_flags, file=out)
 
-  return {
-    'flags': final_flags,
-    'do_cache': True
-  }
+    return {
+        'flags': final_flags,
+        'do_cache': True
+    }
 
 def isProjectRoot(directory):
     return os.path.exists(os.path.join(directory, '.git'))
@@ -448,3 +325,37 @@ def FlagsForSwift(filename, **kwargs):
         'flags': final_flags,
         'do_cache': True
     }
+
+
+DIR_OF_THIS_SCRIPT = os.path.abspath( os.path.dirname( __file__ ) )
+DIR_OF_THIRD_PARTY = os.path.join( DIR_OF_THIS_SCRIPT, 'third_party' )
+DIR_OF_YCMD_THIRD_PARTY = os.path.join( DIR_OF_THIRD_PARTY,
+                                        'ycmd', 'third_party' )
+
+
+def GetStandardLibraryIndexInSysPath( sys_path ):
+  for index, path in enumerate( sys_path ):
+    if os.path.isfile( os.path.join( path, 'os.py' ) ):
+      return index
+  raise RuntimeError( 'Could not find standard library path in Python path.' )
+
+
+def PythonSysPath( **kwargs ):
+  sys_path = kwargs[ 'sys_path' ]
+
+  for folder in os.listdir( DIR_OF_THIRD_PARTY ):
+    sys_path.insert( 0, os.path.realpath( os.path.join( DIR_OF_THIRD_PARTY,
+                                                        folder ) ) )
+
+  for folder in os.listdir( DIR_OF_YCMD_THIRD_PARTY ):
+    if folder == 'python-future':
+      folder = os.path.join( folder, 'src' )
+      sys_path.insert( GetStandardLibraryIndexInSysPath( sys_path ) + 1,
+                       os.path.realpath( os.path.join( DIR_OF_YCMD_THIRD_PARTY,
+                                                       folder ) ) )
+      continue
+
+    sys_path.insert( 0, os.path.realpath( os.path.join( DIR_OF_YCMD_THIRD_PARTY,
+                                                        folder ) ) )
+
+  return sys_path
