@@ -213,8 +213,8 @@ The following additional language support options are available:
   `install.py`.
 - Go support: install [Go][go-install] and add `--go-completer` when calling
   `install.py`.
-- JavaScript and TypeScript support: install [Node.js and npm][npm-install] then
-  install the TypeScript SDK with `npm install -g typescript`.
+- JavaScript and TypeScript support: install [Node.js and npm][npm-install] and
+  add `--ts-completer` when calling `install.py`.
 - Rust support: install [Rust][rust-install] and add
   `--rust-completer` when calling `install.py`.
 - Java support: install [JDK8 (version 8 required)][jdk-install] and add
@@ -260,9 +260,7 @@ Install development tools, CMake, and Python headers:
 
 - Fedora 27 and later:
 
-      sudo dnf install cmake gcc-c++ make ncurses-compat-libs python3-devel
-
-  `ncurses-compat-libs` is only required for C-family languages support.
+      sudo dnf install cmake gcc-c++ make python3-devel
 
 - Ubuntu 14.04:
 
@@ -288,8 +286,8 @@ The following additional language support options are available:
   when calling `install.py`.
 - Go support: install [Go][go-install] and add `--go-completer` when calling
   `install.py`.
-- JavaScript and TypeScript support: install [Node.js and npm][npm-install] then
-  install the TypeScript SDK with `npm install -g typescript`.
+- JavaScript and TypeScript support: install [Node.js and npm][npm-install] and
+  add `--ts-completer` when calling `install.py`.
 - Rust support: install [Rust][rust-install] and add `--rust-completer` when
   calling `install.py`.
 - Java support: install [JDK8 (version 8 required)][jdk-install] and add
@@ -379,8 +377,8 @@ The following additional language support options are available:
   Be sure that [the build utility `msbuild` is in your PATH][add-msbuild-to-path].
 - Go support: install [Go][go-install] and add `--go-completer` when calling
   `install.py`.
-- JavaScript and TypeScript support: install [Node.js and npm][npm-install] then
-  install the TypeScript SDK with `npm install -g typescript`.
+- JavaScript and TypeScript support: install [Node.js and npm][npm-install] and
+  add `--ts-completer` when calling `install.py`.
 - Rust support: install [Rust][rust-install] and add `--rust-completer` when
   calling `install.py`.
 - Java support: install [JDK8 (version 8 required)][jdk-install] and add
@@ -451,8 +449,8 @@ The following additional language support options are available:
   `./install.py`.
 - Go support: install [Go][go-install] and add `--go-completer` when calling
   `./install.py`.
-- JavaScript and TypeScript support: install [Node.js and npm][npm-install] then
-  install the TypeScript SDK with `npm install -g typescript`.
+- JavaScript and TypeScript support: install [Node.js and npm][npm-install] and
+  add `--ts-completer` when calling `install.py`.
 - Rust support: install [Rust][rust-install] and add `--rust-completer` when
   calling `./install.py`.
 - Java support: install [JDK8 (version 8 required)][jdk-install] and add
@@ -527,9 +525,9 @@ process.
     **Download the latest version of `libclang`**. Clang is an open-source
     compiler that can compile C-family languages. The `libclang` library it
     provides is used to power the YCM semantic completion engine for those
-    languages. YCM is designed to work with libclang version 3.9 or higher.
+    languages. YCM is designed to work with libclang version 7.0.0 or higher.
 
-    You can use the system libclang _only if you are sure it is version 3.9 or
+    You can use the system libclang _only if you are sure it is version 7.0.0 or
     higher_, otherwise don't. Even if it is, we recommend using the [official
     binaries from llvm.org][clang-download] if at all possible. Make sure you
     download the correct archive file for your OS.
@@ -661,9 +659,9 @@ process.
     - Go support: install [Go][go-install] and add it to your path. Navigate to
       `YouCompleteMe/third_party/ycmd/third_party/gocode` and run `go build`.
 
-    - JavaScript and TypeScript support: as with the quick installation, simply
-      `npm install -g typescript` after successfully installing [Node.js and
-      npm][npm-install].
+    - JavaScript and TypeScript support: install [Node.js and npm][npm-install],
+      navigate to `YouCompleteMe/third_party/ycmd` and run
+      `npm install -g --prefix third_party/tsserver typescript`.
 
     - Rust support: install [Rust][rust-install]. Navigate to
       `YouCompleteMe/third_party/ycmd/third_party/racerd` and run `cargo build
@@ -698,7 +696,7 @@ Quick Feature Summary
 
 ### C-family languages (C, C++, Objective C, Objective C++, CUDA)
 
-* Semantic auto-completion
+* Semantic auto-completion with automatic fixes
 * Real-time diagnostic display
 * Go to include/declaration/definition (`GoTo`, etc.)
 * Semantic type information for identifiers (`GetType`)
@@ -1148,9 +1146,9 @@ present so we'd love to hear your feedback! Please do remember to check
 ### Python Semantic Completion
 
 YCM relies on the [Jedi][] engine to provide completion and code navigation. By
-default, it will pick the latest version of Python available on your system and
-use its default `sys.path`. While this is fine for simple projects, this needs
-to be configurable when working with virtual environments or in a project with
+default, it will pick the version of Python running the [ycmd server][ycmd] and
+use its `sys.path`. While this is fine for simple projects, this needs to be
+configurable when working with virtual environments or in a project with
 third-party packages. The next sections explain how to do that.
 
 #### Working with virtual environments
@@ -1292,11 +1290,10 @@ installation. Further instructions on how to setup YCM with [Tern][] are
 available on [the wiki][tern-instructions].
 
 All JavaScript and TypeScript features are provided by the [TSServer][] engine,
-which is included in the TypeScript SDK. To get the SDK, install [Node.js and
-npm][npm-install] and run the command:
-```
-npm install -g typescript
-```
+which is included in the TypeScript SDK. To enable these features, install
+[Node.js and npm][npm-install] and call the `install.py` script with the
+`--ts-completer` flag.
+
 [TSServer][] relies on [the `jsconfig.json` file][jsconfig.json] for JavaScript
 and [the `tsconfig.json` file][tsconfig.json] for TypeScript to analyze your
 project. Ensure the file exists at the root of your project.
@@ -1310,11 +1307,6 @@ To get diagnostics in JavaScript, set the `checkJs` option to `true` in your
     }
 }
 ```
-
-TypeScript 2.8.1 or later is recommended. Some features will be missing on older
-versions. You can check which version you are currently using by looking at the
-output of [`:YcmDebugInfo` ](#the-ycmdebuginfo-command). If the version is
-`None`, your TypeScript is too old and should be updated.
 
 ### Semantic Completion for Other Languages
 
@@ -1507,18 +1499,13 @@ This command gives access to a number of additional [IDE-like
 features](#quick-feature-summary) in YCM, for things like semantic GoTo, type
 information, FixIt and refactoring.
 
-Technically the command invokes completer-specific commands.  If the first
-argument is of the form `ft=...` the completer for that file type will be used
-(for example `ft=cpp`), else the native completer of the current buffer will be
-used.
+This command accepts a range that can either be specified through a selection in
+one of Vim's visual modes (see `:h visual-use`) or on the command line. For
+instance, `:2,5YcmCompleter` will apply the command from line 2 to line 5. This
+is useful for [the `Format` subcommand](#the-format-subcommand).
 
-This command also accepts a range that can either be specified through a
-selection in one of Vim's visual modes (see `:h visual-use`) or on the command
-line. For instance, `:2,5YcmCompleter` will apply the command from line 2 to
-line 5. This is useful for [the `Format` subcommand](#the-format-subcommand).
-
-Call `YcmCompleter` without further arguments for a list of the
-commands you can call for the current completer.
+Call `YcmCompleter` without further arguments for a list of the commands you can
+call for the current completer.
 
 See the [file type feature summary](#quick-feature-summary) for an overview of
 the features available for each file type. See the _YcmCompleter subcommands_
@@ -2058,10 +2045,10 @@ semantic engine will operate in them.
 
 You can get the filetype of the current file in Vim with `:set ft?`.
 
-Default: `{'*' : 1}`
+Default: `{'*': 1}`
 
 ```viml
-let g:ycm_filetype_whitelist = { '*': 1 }
+let g:ycm_filetype_whitelist = {'*': 1}
 ```
 
 ### The `g:ycm_filetype_blacklist` option
@@ -2077,16 +2064,16 @@ Default: `[see next line]`
 
 ```viml
 let g:ycm_filetype_blacklist = {
-      \ 'tagbar' : 1,
-      \ 'qf' : 1,
-      \ 'notes' : 1,
-      \ 'markdown' : 1,
-      \ 'unite' : 1,
-      \ 'text' : 1,
-      \ 'vimwiki' : 1,
-      \ 'pandoc' : 1,
-      \ 'infolog' : 1,
-      \ 'mail' : 1
+      \ 'tagbar': 1,
+      \ 'qf': 1,
+      \ 'notes': 1,
+      \ 'markdown': 1,
+      \ 'unite': 1,
+      \ 'text': 1,
+      \ 'vimwiki': 1,
+      \ 'pandoc': 1,
+      \ 'infolog': 1,
+      \ 'mail': 1
       \}
 ```
 
@@ -2124,7 +2111,7 @@ being filetype strings (like `python`, `cpp`, etc.) and values being unimportant
 The `*` key is special and matches all filetypes. Use this key if you want to
 completely disable filepath completion:
 ```viml
-let g:ycm_filepath_blacklist = { '*': 1 }
+let g:ycm_filepath_blacklist = {'*': 1}
 ```
 
 You can get the filetype of the current file in Vim with `:set ft?`.
@@ -2133,9 +2120,9 @@ Default: `[see next line]`
 
 ```viml
 let g:ycm_filepath_blacklist = {
-      \ 'html' : 1,
-      \ 'jsx' : 1,
-      \ 'xml' : 1,
+      \ 'html': 1,
+      \ 'jsx': 1,
+      \ 'xml': 1,
       \}
 ```
 
@@ -2771,17 +2758,17 @@ Default: `[see next line]`
 
 ```viml
 let g:ycm_semantic_triggers =  {
-  \   'c' : ['->', '.'],
-  \   'objc' : ['->', '.', 're!\[[_a-zA-Z]+\w*\s', 're!^\s*[^\W\d]\w*\s',
-  \             're!\[.*\]\s'],
-  \   'ocaml' : ['.', '#'],
-  \   'cpp,cuda,objcpp' : ['->', '.', '::'],
-  \   'perl' : ['->'],
-  \   'php' : ['->', '::'],
-  \   'cs,java,javascript,typescript,d,python,perl6,scala,vb,elixir,go' : ['.'],
-  \   'ruby' : ['.', '::'],
-  \   'lua' : ['.', ':'],
-  \   'erlang' : [':'],
+  \   'c': ['->', '.'],
+  \   'objc': ['->', '.', 're!\[[_a-zA-Z]+\w*\s', 're!^\s*[^\W\d]\w*\s',
+  \            're!\[.*\]\s'],
+  \   'ocaml': ['.', '#'],
+  \   'cpp,cuda,objcpp': ['->', '.', '::'],
+  \   'perl': ['->'],
+  \   'php': ['->', '::'],
+  \   'cs,d,elixir,go,groovy,java,javascript,julia,perl6,python,scala,typescript,vb': ['.'],
+  \   'ruby,rust': ['.', '::'],
+  \   'lua': ['.', ':'],
+  \   'erlang': [':'],
   \ }
 ```
 
@@ -3382,7 +3369,7 @@ The latest version of the plugin is available at
 The author's homepage is <http://val.markovic.io>.
 
 Please do **NOT** go to #vim on freenode for support. Please contact the
-YouCompleteMe maintainers directly using the [contact details](#contact) below.
+YouCompleteMe maintainers directly using the [contact details](#contact).
 
 License
 -------

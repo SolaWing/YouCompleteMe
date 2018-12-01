@@ -123,6 +123,11 @@ class OmniCompleter( Completer ):
       if not hasattr( items, '__iter__' ):
         raise TypeError( OMNIFUNC_NOT_LIST )
 
+      # Vim allows each item of the list to be either a string or a dictionary
+      # but ycmd only supports lists where items are all strings or all
+      # dictionaries. Convert all strings into dictionaries.
+
+      # fix omni should return dict always. to ensure type safety
       ensure_dict = lambda i: i if isinstance(i, dict) else {
           'word'  : i,   'abbr'  : i,
           'dup'   : 1,   'empty' : 1,

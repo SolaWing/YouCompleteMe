@@ -38,7 +38,7 @@ from ycm import base, paths, vimsupport
 from ycm.buffer import ( BufferDict,
                          DIAGNOSTIC_UI_FILETYPES,
                          DIAGNOSTIC_UI_ASYNC_FILETYPES )
-from ycmd import server_utils, user_options_store, utils
+from ycmd import server_utils, utils
 from ycmd.request_wrap import RequestWrap
 from ycm.omni_completer import OmniCompleter
 from ycm import syntax_parse
@@ -149,9 +149,7 @@ class YouCompleteMe( object ):
     self._server_is_ready_with_cache = False
     self._message_poll_request = None
 
-    base.LoadJsonDefaultsIntoVim()
-    user_options_store.SetAll( base.BuildServerConf() )
-    self._user_options = user_options_store.GetAll()
+    self._user_options = base.GetUserOptions()
     self._omnicomp = OmniCompleter( self._user_options )
     self._buffers = BufferDict( self._user_options )
 
@@ -381,11 +379,19 @@ class YouCompleteMe( object ):
 
   def SendCommandRequest( self,
                           arguments,
-                          completer,
                           modifiers,
                           has_range,
                           start_line,
                           end_line ):
+    final_arguments = []
+    for argument in arguments:
+      # The ft= option which specifies the completer when running a command is
+      # ignored because it has not been working for a long time. The option is
+      # still parsed to not break users that rely on it.
+      if argument.startswith( 'ft=' ):
+        continue
+      final_arguments.append( argument )
+
     extra_data = {
       'options': {
         'tab_size': vimsupport.GetIntValue( 'shiftwidth()' ),
@@ -395,7 +401,11 @@ class YouCompleteMe( object ):
     if has_range:
       extra_data.update( vimsupport.BuildRange( start_line, end_line ) )
     self._AddExtraConfDataIfNeeded( extra_data )
-    return SendCommandRequest( arguments, completer, modifiers, extra_data )
+
+    return SendCommandRequest( final_arguments,
+                               modifiers,
+                               self._user_options[ 'goto_buffer_command' ],
+                               extra_data )
 
 
   def GetDefinedSubcommands( self ):
