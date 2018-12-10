@@ -228,11 +228,11 @@ def filterSwiftArgs(items):
       while True:
         arg = next(it)
 
-        if arg in {"-primary-file", "-o", "-serialize-diagnostics-path"}:
+        if arg in {"-primary-file", "-o", "-serialize-diagnostics-path", "-Xfrontend"}:
             next(it)
             continue
         if arg.startswith("-emit"):
-            next(it)
+            if arg.endswith("-path"): next(it)
             continue
         if arg in {"-frontend", "-c", "-pch-disable-validation", "-index-system-modules", "-serialize-debugging-options", "-enable-objc-interop"}:
             continue
@@ -282,9 +282,13 @@ def CommandForSwiftInCompile(filename, compileFile):
         import json
         with open(compileFile) as f:
             m = json.load(f) # type: list
+            info.update( (j, i['command'])
+                for i in m if "files" in i and "command" in i
+                for j in i['files']
+            ) # swift module files
             info.update( (i["file"],i["command"]) # now not use other argument, like cd
                         for i in m
-                        if "file" in i and "command" in i )
+                        if "file" in i and "command" in i ) # single file command
     return info.get(filename, "")
 
 def FlagsForSwift(filename, **kwargs):
