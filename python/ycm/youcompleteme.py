@@ -565,13 +565,13 @@ class YouCompleteMe( object ):
 
   def OnCompleteDone( self ):
     completion_request = self.GetCurrentCompletionRequest()
-    if completion_request:
+    if completion_request and completion_request.Done(): # GetCompletionsUserMayHaveCompleted will block thread
       completion_request.OnCompleteDone(self._complete_really_done)
 
-    r = self.GetCompletionsUserMayHaveCompleted()
-    if r:
-        #  self._logger.info("match: %s", r[0].get(u"insertion_text"))
-        self._used_completions.update( r[0].get(u"insertion_text") )
+      r = self.GetCompletionsUserMayHaveCompleted()
+      if r:
+          #  self._logger.info("match: %s", r[0].get(u"insertion_text"))
+          self._used_completions.update( r[0].get(u"insertion_text") )
 
     if not self._complete_really_done: return
     complete_done_actions = self.GetCompleteDoneHooks()
