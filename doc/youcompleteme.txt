@@ -155,7 +155,7 @@ Contents ~
   11. I have a Homebrew Python and/or MacVim; can't compile/SIGABRT when starting |youcompleteme-i-have-homebrew-python-and-or-macvim-cant-compile-sigabrt-when-starting|
   12. I get 'LONG_BIT definition appears wrong for platform' when compiling |youcompleteme-i-get-long_bit-definition-appears-wrong-for-platform-when-compiling|
   13. I get 'libpython2.7.a [...] relocation R_X86_64_32' when compiling |youcompleteme-i-get-libpython2.7.a-...-relocation-r_x86_64_32-when-compiling|
-  14. I get 'Vim: Caught deadly signal SEGV' on Vim startup |youcompleteme-i-get-vim-caught-deadly-signal-segv-on-vim-startup|
+  14. I see 'undefined symbol: clang_getCompletionFixIt' in the server logs. |youcompleteme-i-see-undefined-symbol-clang_getcompletionfixit-in-server-logs.|
   15. I get 'Fatal Python error: PyThreadState_Get: no current thread' on startup |youcompleteme-i-get-fatal-python-error-pythreadstate_get-no-current-thread-on-startup|
   16. 'install.py' says python must be compiled with '--enable-framework'. Wat? |youcompleteme-install.py-says-python-must-be-compiled-with-enable-framework-.-wat|
   17. YCM does not read identifiers from my tags files |youcompleteme-ycm-does-not-read-identifiers-from-my-tags-files|
@@ -530,7 +530,7 @@ can check the version and which Python is supported by typing ':version' inside
 Vim. Look at the features included: '+python/dyn' for Python 2 and
 '+python3/dyn' for Python 3. Take note of the Vim architecture, i.e. 32 or
 64-bit. It will be important when choosing the Python installer. We recommend
-using a 64-bit client. Daily updated copies of 32-bit and 64-bit Vim with
+using a 64-bit client. Daily updated installers of 32-bit and 64-bit Vim with
 Python 2 and Python 3 support [34] are available.
 
 Add the line:
@@ -923,9 +923,9 @@ C-family languages (C, C++, Objective C, Objective C++, CUDA) ~
 - Semantic auto-completion with automatic fixes
 - Real-time diagnostic display
 - Go to include/declaration/definition (|GoTo|, etc.)
-- Semantic type information for identifiers (|GetType|)
-- Automatically fix certain errors (|FixIt|)
 - View documentation comments for identifiers (|GetDoc|)
+- Type information for identifiers (|GetType|)
+- Automatically fix certain errors (|FixIt|)
 
 -------------------------------------------------------------------------------
                                                               *youcompleteme-c*
@@ -934,19 +934,20 @@ C♯ ~
 - Semantic auto-completion
 - Real-time diagnostic display
 - Go to declaration/definition (|GoTo|, etc.)
-- Semantic type information for identifiers (|GetType|)
+- View documentation comments for identifiers (|GetDoc|)
+- Type information for identifiers (|GetType|)
 - Automatically fix certain errors (|FixIt|)
 - Management of OmniSharp server instance
-- View documentation comments for identifiers (|GetDoc|)
 
 -------------------------------------------------------------------------------
                                                          *youcompleteme-python*
 Python ~
 
-- Intelligent auto-completion
+- Semantic auto-completion
 - Go to definition (|GoTo|)
 - Reference finding (|GoToReferences|)
 - View documentation comments for identifiers (|GetDoc|)
+- Type information for identifiers (|GetType|)
 
 -------------------------------------------------------------------------------
                                                              *youcompleteme-go*
@@ -961,15 +962,15 @@ Go ~
 JavaScript and TypeScript ~
 
 - Semantic auto-completion with automatic import insertion
+- Real-time diagnostic display
 - Go to definition (|GoTo|, |GoToDefinition|, and |GoToDeclaration| are
   identical)
 - Go to type definition (|GoToType|)
 - Reference finding (|GoToReferences|)
-- Real-time diagnostic display
-- Renaming symbols ('RefactorRename <new name>')
 - View documentation comments for identifiers (|GetDoc|)
 - Type information for identifiers (|GetType|)
 - Automatically fix certain errors (|FixIt|)
+- Renaming symbols ('RefactorRename <new name>')
 - Code formatting (|Format|)
 - Organize imports (|OrganizeImports|)
 - Management of 'TSServer' server instance
@@ -981,8 +982,8 @@ Rust ~
 - Semantic auto-completion
 - Go to definition (|GoTo|, |GoToDefinition|, and |GoToDeclaration| are
   identical)
-- Management of 'racer' server instance
 - View documentation comments for identifiers (|GetDoc|)
+- Management of 'racer' server instance
 
 -------------------------------------------------------------------------------
                                                            *youcompleteme-java*
@@ -992,14 +993,14 @@ Java ~
 feedback.
 
 - Semantic auto-completion with automatic import insertion
+- Real-time diagnostic display
 - Go to definition (|GoTo|, |GoToDefinition|, and |GoToDeclaration| are
   identical)
 - Reference finding (|GoToReferences|)
-- Real-time diagnostic display
-- Renaming symbols ('RefactorRename <new name>')
 - View documentation comments for identifiers (|GetDoc|)
 - Type information for identifiers (|GetType|)
 - Automatically fix certain errors including code generation (|FixIt|)
+- Renaming symbols ('RefactorRename <new name>')
 - Code formatting (|Format|)
 - Organize imports (|OrganizeImports|)
 - Detection of java projects
@@ -1656,9 +1657,13 @@ You can also style the line that has the warning/error with these groups:
 - 'YcmWarningLine', which falls back to group 'SyntasticWarningLine' if it
   exists
 
-Note that the line highlighting groups only work when gutter signs are turned
-on.
-
+Note that the line highlighting groups only work when the
+|g:ycm_enable_diagnostic_signs| option is set. If you want highlighted lines
+but no signs in the Vim gutter, ensure that your Vim version is 7.4.2201 or
+later and set the 'signcolumn' option to 'off' in your vimrc:
+>
+  set signcolumn=off
+<
 The syntax groups used to highlight regions of text with errors/warnings: -
 'YcmErrorSection', which falls back to group 'SyntasticError' if it exists and
 then 'SpellBad' - 'YcmWarningSection', which falls back to group
@@ -1890,7 +1895,7 @@ Invoking this command on 's' returns 'std::string => std::basic_string<char>'
 
 **NOTE:** Causes re-parsing of the current translation unit.
 
-Supported in filetypes: 'c, cpp, objc, objcpp, cuda, java, javascript,
+Supported in filetypes: 'c, cpp, objc, objcpp, cuda, java, javascript, python,
 typescript'
 
 -------------------------------------------------------------------------------
@@ -2787,8 +2792,10 @@ Default: '0'
 The *g:ycm_max_diagnostics_to_display* option
 
 This option controls the maximum number of diagnostics shown to the user when
-errors or warnings are detected in the file. This option is only relevant if
-you are using the C-family semantic completion engine.
+errors or warnings are detected in the file. This option is only relevant for
+the C-family, C#, Java, JavaScript, and TypeScript languages.
+
+A special value of '0' means there is no limit.
 
 Default: '30'
 >
@@ -3257,19 +3264,13 @@ version of libpython on your machine (for instance,
 to go through the full installation guide by hand.
 
 -------------------------------------------------------------------------------
-             *youcompleteme-i-get-vim-caught-deadly-signal-segv-on-vim-startup*
-I get 'Vim: Caught deadly signal SEGV' on Vim startup ~
+*youcompleteme-i-see-undefined-symbol-clang_getcompletionfixit-in-server-logs.*
+I see 'undefined symbol: clang_getCompletionFixIt' in the server logs. ~
 
-This can happen on some Linux distros. If you encounter this situation, run Vim
-under 'gdb'. You'll probably see something like this in the output when Vim
-crashes:
->
-  undefined symbol: clang_CompileCommands_dispose
-<
-This means that Vim is trying to load a 'libclang.so' that is too old. You need
-at least a 3.9 libclang. Just go through the installation guide and make sure
-you are using a correct 'libclang.so'. We recommend downloading prebuilt
-binaries from llvm.org.
+This means that the server is trying to load a version of libclang that is too
+old. You need at least libclang 7.0.0. We recommend running the 'install.py'
+script without '--system-libclang' or downloading the latest prebuilt binaries
+from llvm.org [40] when going through the full installation guide.
 
 -------------------------------------------------------------------------------
 *youcompleteme-i-get-fatal-python-error-pythreadstate_get-no-current-thread-on-startup*
@@ -3569,10 +3570,10 @@ YCM does not shut down when I quit Vim ~
 
 YCM relies on the 'VimLeave' event to shut down the ycmd server [46]. Some
 plugins prevent this event from triggering by exiting Vim through an
-autocommand without using the 'nested' keyword (see ':h autocmd-nested'). One
-of these plugins is vim-nerdtree-tabs [83]. You should identify which plugin is
-responsible for the issue and report it to the plugin author. Note that when
-this happens, ycmd [46] will automatically shut itself down after 30 minutes.
+autocommand without using the 'nested' keyword (see ':h autocmd-nested'). You
+should identify which plugin is responsible for the issue and report it to the
+plugin author. Note that when this happens, ycmd [46] will automatically shut
+itself down after 30 minutes.
 
 -------------------------------------------------------------------------------
                 *youcompleteme-ycm-does-not-work-with-my-anaconda-python-setup*
@@ -3605,7 +3606,7 @@ later.
 Contributor Code of Conduct ~
 
 Please note that this project is released with a Contributor Code of Conduct
-[84]. By participating in this project you agree to abide by its terms.
+[83]. By participating in this project you agree to abide by its terms.
 
 ===============================================================================
                                                         *youcompleteme-contact*
@@ -3615,7 +3616,7 @@ If you have questions about the plugin or need help, please join the Gitter
 room [1] or use the ycm-users [77] mailing list.
 
 If you have bug reports or feature suggestions, please use the issue tracker
-[85]. Before you do, please carefully read CONTRIBUTING.md [59] as this asks
+[84]. Before you do, please carefully read CONTRIBUTING.md [59] as this asks
 for important diagnostics which the team will use to help get you going.
 
 The latest version of the plugin is available at
@@ -3630,7 +3631,7 @@ YouCompleteMe maintainers directly using the contact details.
                                                         *youcompleteme-license*
 License ~
 
-This software is licensed under the GPL v3 license [86]. © 2015-2018
+This software is licensed under the GPL v3 license [85]. © 2015-2018
 YouCompleteMe contributors
 
 ===============================================================================
@@ -3670,7 +3671,7 @@ References ~
 [31] http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html
 [32] https://github.com/Valloric/YouCompleteMe/wiki/Building-Vim-from-source
 [33] https://www.mono-project.com/download/stable/#download-lin
-[34] https://bintray.com/micbou/generic/vim
+[34] https://github.com/vim/vim-win32-installer/releases
 [35] http://vimhelp.appspot.com/starting.txt.html#vimrc
 [36] https://www.python.org/downloads/windows/
 [37] https://www.visualstudio.com/downloads/
@@ -3719,9 +3720,8 @@ References ~
 [80] http://stackoverflow.com/questions/14552348/runtime-error-r6034-in-embedded-python-application/34696022
 [81] https://github.com/vim/vim/issues/717
 [82] https://github.com/vim/vim-win32-installer/blob/a27bbdba9bb87fa0e44c8a00d33d46be936822dd/appveyor.bat#L86-L88
-[83] https://github.com/jistr/vim-nerdtree-tabs
-[84] https://github.com/Valloric/YouCompleteMe/blob/master/CODE_OF_CONDUCT.md
-[85] https://github.com/Valloric/YouCompleteMe/issues?state=open
-[86] http://www.gnu.org/copyleft/gpl.html
+[83] https://github.com/Valloric/YouCompleteMe/blob/master/CODE_OF_CONDUCT.md
+[84] https://github.com/Valloric/YouCompleteMe/issues?state=open
+[85] http://www.gnu.org/copyleft/gpl.html
 
 vim: ft=help

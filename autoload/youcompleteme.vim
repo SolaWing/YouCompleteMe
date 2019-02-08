@@ -188,19 +188,46 @@ from __future__ import division
 from __future__ import absolute_import
 
 import os.path as p
+import re
 import sys
 import traceback
 import vim
 
 root_folder = p.normpath( p.join( vim.eval( 's:script_folder_path' ), '..' ) )
 third_party_folder = p.join( root_folder, 'third_party' )
-ycmd_third_party_folder = p.join( third_party_folder, 'ycmd', 'third_party' )
+python_stdlib_zip_regex = re.compile( 'python[23][0-9]\\.zip' )
+
+
+def IsStandardLibraryFolder( path ):
+  return ( ( p.isfile( path )
+             and python_stdlib_zip_regex.match( p.basename( path ) ) )
+           or p.isfile( p.join( path, 'os.py' ) ) )
+
+
+def IsVirtualEnvLibraryFolder( path ):
+  return p.isfile( p.join( path, 'orig-prefix.txt' ) )
+
+
+def GetStandardLibraryIndexInSysPath():
+  for index, path in enumerate( sys.path ):
+    if ( IsStandardLibraryFolder( path ) and
+         not IsVirtualEnvLibraryFolder( path ) ):
+      return index
+  raise RuntimeError( 'Could not find standard library path in Python path.' )
+
 
 # Add dependencies to Python path.
 dependencies = [ p.join( root_folder, 'python' ),
                  p.join( third_party_folder, 'requests-futures' ),
                  p.join( third_party_folder, 'ycmd' ),
-                 p.join( ycmd_third_party_folder, 'requests' ) ]
+                 p.join( third_party_folder, 'requests_deps', 'idna' ),
+                 p.join( third_party_folder, 'requests_deps', 'chardet' ),
+                 p.join( third_party_folder,
+                         'requests_deps',
+                         'urllib3',
+                         'src' ),
+                 p.join( third_party_folder, 'requests_deps', 'certifi' ),
+                 p.join( third_party_folder, 'requests_deps', 'requests' ) ]
 
 # The concurrent.futures module is part of the standard library on Python 3.
 if sys.version_info[ 0 ] == 2:
@@ -211,9 +238,8 @@ sys.path[ 0:0 ] = dependencies
 # We enclose this code in a try/except block to avoid backtraces in Vim.
 try:
   # The python-future module must be inserted after the standard library path.
-  from ycmd.server_utils import GetStandardLibraryIndexInSysPath
   sys.path.insert( GetStandardLibraryIndexInSysPath() + 1,
-                   p.join( ycmd_third_party_folder, 'python-future', 'src' ) )
+                   p.join( third_party_folder, 'python-future', 'src' ) )
 
   # Import the modules used in this file.
   from ycm import base, vimsupport, youcompleteme
@@ -486,6 +512,11 @@ endfunction
 
 
 function! s:OnVimLeave()
+  " Workaround a NeoVim issue - not shutting down timers correctly
+  " https://github.com/neovim/neovim/issues/6840
+  for poller in values( s:pollers )
+    call timer_stop( poller.id )
+  endfor
   exec s:python_command "ycm_state.OnVimLeave()"
 endfunction
 
@@ -501,6 +532,10 @@ function! youcompleteme#OnCompleteAction(key)
 endfunction
 
 function! s:OnCompleteDone()
+  if !s:AllowedToCompleteInCurrentBuffer()
+    return
+  endif
+
   exec s:python_command "ycm_state.OnCompleteDone()"
 endfunction
 
