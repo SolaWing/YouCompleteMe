@@ -292,7 +292,7 @@ def CommandForSwiftInCompile(filename, compileFile):
     return info.get(filename, "")
 
 def FlagsForSwift(filename, **kwargs):
-    filename = os.path.abspath(filename)
+    filename = os.path.realpath(filename)
     final_flags = []
     project_root, flagFile, compileFile = findSwiftModuleRoot(filename)
     print(f"xxxx {project_root}, {compileFile}")
@@ -323,6 +323,7 @@ def FlagsForSwift(filename, **kwargs):
             ]
     if not final_flags:
         final_flags = [
+            filename,
             '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/',
             '-target', 'x86_64-apple-ios8.0',
         ]
