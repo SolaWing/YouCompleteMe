@@ -1,4 +1,4 @@
-# Copyright (C) 2011, 2012, 2013  Google Inc.
+# Copyright (C) 2011-2019 ycmd contributors
 #
 # This file is part of YouCompleteMe.
 #
@@ -131,7 +131,7 @@ class OmniCompleter( Completer ):
       ensure_dict = lambda i: i if isinstance(i, dict) else {
           'word'  : i,   'abbr'  : i,
           'dup'   : 1,   'empty' : 1,
-          'kind'  : "U",
+          'kind'  : "U", 'equal' : 1,
       }
       return [ensure_dict(i) for i in items if bool(i)]
 
