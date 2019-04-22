@@ -318,14 +318,12 @@ def FlagsForSwift(filename, **kwargs):
             final_flags += a
         else:
             final_flags += [
-                '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/',
-                '-target', 'x86_64-apple-ios8.0',
+                '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/',
             ]
     if not final_flags:
         final_flags = [
             filename,
-            '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/',
-            '-target', 'x86_64-apple-ios8.0',
+            '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/',
         ]
 
     return {
