@@ -323,7 +323,7 @@ function! s:SetUpKeyMappings()
   endif
 
   if !empty( g:ycm_key_param_template )
-    exe 'inoremap <expr>' . g:ycm_key_param_template . ' youcompleteme#OnCompleteAction( "\' . g:ycm_key_param_template . '" )'
+    exe 'inoremap <unique> <expr>' . g:ycm_key_param_template . ' youcompleteme#OnCompleteAction( "\' . g:ycm_key_param_template . '" )'
   endif
   " The TextChangedI event is not triggered when deleting a character while the
   " completion menu is open. We handle this by closing the completion menu on
@@ -332,6 +332,7 @@ function! s:SetUpKeyMappings()
     silent! exe 'inoremap <unique> <expr> ' . key .
           \ ' <SID>OnDeleteChar( "\' . key . '" )'
   endfor
+  silent! inoremap <unique> <expr> <Plug>YCM_BS  <SID>OnDeleteChar( "\<BS>" )
 endfunction
 
 
