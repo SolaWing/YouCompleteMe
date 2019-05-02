@@ -108,17 +108,10 @@ def FlagsForFile( filename, **kwargs ):
     #'-std=gnu11',
     '-D__arm__',
     '-D__OBJC__=1',
-    '-arch arm64',
-    '-miphoneos-version-min=8.0',
     # ...and the same thing goes for the magic -x option which specifies the
     # language that the files to be compiled are written in. This is mostly
     # relevant for c++ headers.
     # For a C project, you would set this to 'c' instead of 'c++'.
-    '-x',
-    'objective-c++',
-    '-isystem','/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/include',
-    '-iframework/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks',
-    '-iframework/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks',
     '-isystem',
     '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1',
     '-isystem',
@@ -151,10 +144,9 @@ def FlagsForFile( filename, **kwargs ):
         final_flags += additionalFlags(project_root)
 
     if filename.endswith('.m') or filename.endswith('.c'):
-        final_flags.append('-std=gnu11');
+        final_flags.extend(['-std=gnu11', '-x', 'objective-c']);
     else:
-        final_flags.append('-std=gnu++14');
-
+        final_flags.append(['-std=gnu++14', '-x', 'objective-c++'])
     try:
         final_flags += kwargs['client_data']['ycm_additional_flags']
     except Exception as e:
