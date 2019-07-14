@@ -334,6 +334,7 @@ class YouCompleteMe( object ):
     self._saw_completions.see(self._latest_completion_request, response)
     response[ 'completions' ] = base.AdjustCandidateInsertionText(
         response[ 'completions' ] )
+    response[ 'completions' ] = self._prependNumber(response['completions'])
     return response
 
   def _SortByUsage( self, completions, saw_words ):
@@ -376,6 +377,11 @@ class YouCompleteMe( object ):
 
     return completions
 
+
+  def _prependNumber(self, completions):
+      for (i, c) in enumerate(completions):
+          c['abbr'] = "%d: %s"%(i+1, c['abbr'])
+      return completions
 
   def SendCommandRequest( self,
                           arguments,
