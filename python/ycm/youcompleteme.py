@@ -380,7 +380,7 @@ class YouCompleteMe( object ):
 
   def _prependNumber(self, completions):
       for (i, c) in enumerate(completions):
-          print(type(c), c)
+          # print(type(c), c)
           c['abbr'] = "%d: %s"%(i+1, c.get('abbr', c['word']))
       return completions
 
