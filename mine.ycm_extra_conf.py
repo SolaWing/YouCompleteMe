@@ -210,8 +210,7 @@ def readFileList(path):
     with open(path) as f:
         return f.read().splitlines()
 
-fileListCache = {}
-def filterSwiftArgs(items):
+def filterSwiftArgs(items, fileListCache):
     """
     f: should return True to accept, return number to skip next number flags
     """
@@ -264,12 +263,11 @@ def findSwiftModuleRoot(filename):
 
     return (directory, flagFile, compileFile)
 
-compileFileCache = {}
-def CommandForSwiftInCompile(filename, compileFile):
-    info = compileFileCache.get(compileFile)
+def CommandForSwiftInCompile(filename, compileFile, store):
+    info = store.get(compileFile)
     if info is None:
         info = {}
-        compileFileCache[compileFile] = info # cache first to avoid re enter when error
+        store[compileFile] = info # cache first to avoid re enter when error
 
         import json
         with open(compileFile) as f:
@@ -283,18 +281,21 @@ def CommandForSwiftInCompile(filename, compileFile):
                         if "file" in i and "command" in i ) # single file command
     return info.get(filename, "")
 
+globalStore = {}
 def FlagsForSwift(filename, **kwargs):
+    store = kwargs.get('store', globalStore)
+    print("store is ", store)
     filename = os.path.realpath(filename)
     final_flags = []
     project_root, flagFile, compileFile = findSwiftModuleRoot(filename)
     print(f"xxxx {project_root}, {compileFile}")
     if compileFile:
-        command = CommandForSwiftInCompile(filename, compileFile)
+        command = CommandForSwiftInCompile(filename, compileFile, store.setdefault('compile', {}))
         print(f"command for {filename} is: {command}")
         if command:
             import shlex
             flags = shlex.split(command)[1:] # ignore executable
-            final_flags = list(filterSwiftArgs(flags))
+            final_flags = list(filterSwiftArgs(flags, store.setdefault('filelist', {})))
 
     if not final_flags and flagFile:
         headers, frameworks = findAllHeaderDirectory(project_root)
@@ -306,7 +307,7 @@ def FlagsForSwift(filename, **kwargs):
         final_flags += swiftfiles
         a = additionalSwiftFlags(flagFile)
         if a:
-            a = list(filterSwiftArgs(a))
+            a = list(filterSwiftArgs(a, store.setdefault('filelist', {})))
             final_flags += a
         else:
             final_flags += [
