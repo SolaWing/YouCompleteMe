@@ -2,7 +2,7 @@ YouCompleteMe: a code-completion engine for Vim
 ===============================================
 
 [![Gitter room](https://img.shields.io/gitter/room/Valloric/YouCompleteMe.svg)](https://gitter.im/Valloric/YouCompleteMe)
-[![Build status](https://dev.azure.com/YouCompleteMe/YCM/_apis/build/status/Valloric.YouCompleteMe?branchName=master)](https://dev.azure.com/YouCompleteMe/YCM/_build/latest?definitionId=1&branchName=master)
+[![Build status](https://dev.azure.com/YouCompleteMe/YCM/_apis/build/status/ycm-core.YouCompleteMe?branchName=master)](https://dev.azure.com/YouCompleteMe/YCM/_build?definitionId=3&branchName=master)
 [![Coverage status](https://img.shields.io/codecov/c/github/ycm-core/YouCompleteMe/master.svg)](https://codecov.io/gh/ycm-core/YouCompleteMe)
 
 Help, Advice, Support
@@ -86,6 +86,7 @@ YouCompleteMe is a fast, as-you-type, fuzzy-search code completion engine for
 - a [TSServer][]-based completion engine for JavaScript and TypeScript,
 - a [rls][]-based completion engine for Rust,
 - a [jdt.ls][]-based experimental completion engine for Java.
+- a [generic Language Server Protocol implementation for any language](#plugging-an-arbitrary-lsp-server)
 - and an omnifunc-based completer that uses data from Vim's omnicomplete system
   to provide semantic completions for many other languages (Ruby, PHP etc.).
 
@@ -1010,7 +1011,7 @@ documentation][compdb]. In short:
   symlink the generated database to the root of your project.
 - If using Ninja, check out the `compdb` tool (`-t compdb`) in its
   [docs][ninja-compdb].
-- If using GNU make, check out [Bear][].
+- If using GNU make, check out [compiledb][] or [Bear][].
 - For other build systems, check out
   [`.ycm_extra_conf.py`](#option-2-provide-the-flags-manually) below. Note that
   **experimental** [clangd][]-based completer doesn't support this option. So it
@@ -1498,6 +1499,9 @@ let g:ycm_language_server =
 
 When [configuring a LSP server](#lsp-configuration) the value of the `name` key
 will be used as the `kwargs[ 'language' ]`.
+
+See [the LSP Examples](https://github.com/ycm-core/lsp-examples) project for more
+examples of configuring the likes of PHP, Ruby, Kotlin, and D.
 
 #### Using `omnifunc` for semantic completion
 
@@ -3743,3 +3747,4 @@ This software is licensed under the [GPL v3 license][gpl].
 [clangd-indexing]: https://clang.llvm.org/extra/clangd.html#project-wide-indexing
 [vimspector]: https://github.com/puremourning/vimspector
 [roslyn-releases]: https://github.com/OmniSharp/omnisharp-roslyn/releases
+[compiledb]: https://pypi.org/project/compiledb/
