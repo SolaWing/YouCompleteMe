@@ -89,15 +89,6 @@ def escapeSpace( s ):
 
 def FlagsForFile( filename, **kwargs ):
     flags = [
-    '-Wall',
-    '-Wextra',
-    ##'-Wc++98-compat',
-    '-Wno-long-long',
-    '-Wno-variadic-macros',
-    '-Wno-nullability-completeness',
-    '-fexceptions',
-    ##'-DNDEBUG',
-    ##'-DNS_BLOCK_ASSERTIONS=1',
     '-DDEBUG=1',
     ## THIS IS IMPORTANT! Without a "-std=<something>" flag, clang won't know which
     ## language to use when compiling headers. So it will guess. Badly. So C++
@@ -203,7 +194,7 @@ def findAllHeaderDirectory(rootDirectory):
 def findAllSwiftFiles(rootDirectory):
     output = subprocess.check_output(['find', '-H', rootDirectory, '-name', '*.swift'],
                                      universal_newlines=True)
-    return output.splitlines()
+    return [os.path.realpath(l) for l in output.splitlines()]
 
 
 def readFileList(path):
@@ -303,12 +294,12 @@ def FlagsForSwift(filename, **kwargs):
             final_flags += ['-Xcc', '-I' + h]
         for f in frameworks:
             final_flags.append( '-F' + f )
-        swiftfiles = findAllSwiftFiles(project_root)
+        swiftfiles = set(findAllSwiftFiles(project_root))
         final_flags += swiftfiles
         a = additionalSwiftFlags(flagFile)
         if a:
-            a = list(filterSwiftArgs(a, store.setdefault('filelist', {})))
-            final_flags += a
+            final_flags += (arg for arg in filterSwiftArgs(a, store.setdefault('filelist', {}))
+                                if arg not in swiftfiles)
         else:
             final_flags += [
                 '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/',
