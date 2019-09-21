@@ -165,7 +165,14 @@ def findAllSwiftFiles(rootDirectory):
 
 def readFileList(path):
     with open(path) as f:
-        return f.read().splitlines()
+        return list(filter(bool, (l.strip() for l in f)))
+
+def yieldFileList(path, cache):
+    files = cache.get(path)
+    if files is None:
+        files = readFileList(path)
+        cache[path] = files
+    yield from files
 
 def filterSwiftArgs(items, fileListCache):
     """
@@ -185,14 +192,10 @@ def filterSwiftArgs(items, fileListCache):
         if arg in {"-frontend", "-c", "-pch-disable-validation", "-index-system-modules", "-serialize-debugging-options", "-enable-objc-interop"}:
             continue
         if arg == "-filelist": # sourcekit dont support filelist, unfold it
-            filelist = next(it)
-            files = fileListCache.get(filelist)
-            if files is None:
-                files = readFileList(filelist)
-                fileListCache[filelist] = files
-            for f in files: # type: str
-                f = f.strip()
-                if f: yield f
+            yield from yieldFileList(next(it), fileListCache)
+            continue
+        if arg.startswith("@"): # swift 5.1 filelist, unfold it
+            yield from yieldFileList(arg[1:], fileListCache)
             continue
         yield arg
     except StopIteration as e:
@@ -229,10 +232,15 @@ def CommandForSwiftInCompile(filename, compileFile, store):
         import json
         with open(compileFile) as f:
             m = json.load(f) # type: list
-            info.update( (j, i['command'])
+            info.update( (f, i['command'])
                 for i in m if "files" in i and "command" in i
-                for j in i['files']
+                for f in i['files']
             ) # swift module files
+            info.update( (f.strip(), i['command'])
+                for i in m if "fileLists" in i and "command" in i
+                for l in i['fileLists'] if os.path.isfile(l)
+                for f in open(l)
+            ) # swift file lists
             info.update( (i["file"],i["command"]) # now not use other argument, like cd
                         for i in m
                         if "file" in i and "command" in i ) # single file command
