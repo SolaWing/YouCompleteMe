@@ -31,6 +31,7 @@
 
 import os
 import subprocess
+import re
 
 def fileInDir(directory, contains):
     for f in os.listdir(directory):
@@ -163,16 +164,30 @@ def findAllSwiftFiles(rootDirectory):
     return [os.path.realpath(l) for l in output.splitlines()]
 
 
+cmd_split_pattern = re.compile(r"""
+"([^"]*)" |     # like "xxx xxx"
+'([^']*)' |     # like 'xxx xxx'
+((?:\\[ ]|\S)+) # like xxx\ xxx
+""", re.X)
+def cmd_split(s):
+    # shlex.split is slow, use a simple version, only consider most case
+    def extract(m):
+        if m.lastindex == 3: # \ escape version. remove it
+            return m.group(m.lastindex).replace("\\ ", " ")
+        return m.group(m.lastindex)
+    return [extract(m)
+            for m in cmd_split_pattern.finditer(s)]
+
 def readFileList(path):
     with open(path) as f:
-        return list(filter(bool, (l.strip() for l in f)))
+        return cmd_split(f.read())
 
-def yieldFileList(path, cache):
+def getFileList(path, cache):
     files = cache.get(path)
     if files is None:
         files = readFileList(path)
         cache[path] = files
-    yield from files
+    return files
 
 def filterSwiftArgs(items, fileListCache):
     """
@@ -192,10 +207,10 @@ def filterSwiftArgs(items, fileListCache):
         if arg in {"-frontend", "-c", "-pch-disable-validation", "-index-system-modules", "-serialize-debugging-options", "-enable-objc-interop"}:
             continue
         if arg == "-filelist": # sourcekit dont support filelist, unfold it
-            yield from yieldFileList(next(it), fileListCache)
+            yield from getFileList(next(it), fileListCache)
             continue
         if arg.startswith("@"): # swift 5.1 filelist, unfold it
-            yield from yieldFileList(arg[1:], fileListCache)
+            yield from getFileList(arg[1:], fileListCache)
             continue
         yield arg
     except StopIteration as e:
@@ -223,7 +238,8 @@ def findSwiftModuleRoot(filename):
 
     return (directory, flagFile, compileFile)
 
-def CommandForSwiftInCompile(filename, compileFile, store):
+def CommandForSwiftInCompile(filename, compileFile, global_store):
+    store = global_store.setdefault('compile', {})
     info = store.get(compileFile)
     if info is None:
         info = {}
@@ -239,7 +255,7 @@ def CommandForSwiftInCompile(filename, compileFile, store):
             info.update( (f.strip(), i['command'])
                 for i in m if "fileLists" in i and "command" in i
                 for l in i['fileLists'] if os.path.isfile(l)
-                for f in open(l)
+                for f in getFileList(l, global_store.setdefault('filelist', {}))
             ) # swift file lists
             info.update( (i["file"],i["command"]) # now not use other argument, like cd
                         for i in m
@@ -253,9 +269,9 @@ def FlagsForSwift(filename, **kwargs):
     filename = os.path.realpath(filename)
     final_flags = []
     project_root, flagFile, compileFile = findSwiftModuleRoot(filename)
-    print(f"xxxx {project_root}, {compileFile}")
+    print(f"root: {project_root}, {compileFile}")
     if compileFile:
-        command = CommandForSwiftInCompile(filename, compileFile, store.setdefault('compile', {}))
+        command = CommandForSwiftInCompile(filename, compileFile, store)
         print(f"command for {filename} is: {command}")
         if command:
             import shlex
