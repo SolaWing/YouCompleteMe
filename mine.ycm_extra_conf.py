@@ -198,7 +198,7 @@ def filterSwiftArgs(items, fileListCache):
       while True:
         arg = next(it)
 
-        if arg in {"-primary-file", "-o", "-serialize-diagnostics-path", "-Xfrontend"}:
+        if arg in {"-primary-file", "-o", "-serialize-diagnostics-path"}:
             next(it)
             continue
         if arg.startswith("-emit"):
