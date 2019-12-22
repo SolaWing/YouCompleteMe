@@ -198,13 +198,14 @@ def filterSwiftArgs(items, fileListCache):
       while True:
         arg = next(it)
 
-        if arg in {"-primary-file", "-o", "-serialize-diagnostics-path"}:
+        # -working-directory raise unsupported arg error
+        if arg in {"-primary-file", "-o", "-serialize-diagnostics-path", "-working-directory", "-Xfrontend"}:
             next(it)
             continue
         if arg.startswith("-emit"):
             if arg.endswith("-path"): next(it)
             continue
-        if arg in {"-frontend", "-c", "-pch-disable-validation", "-index-system-modules", "-serialize-debugging-options", "-enable-objc-interop"}:
+        if arg in {"-frontend", "-c", "-pch-disable-validation", "-index-system-modules", "-enable-objc-interop", '-whole-module-optimization', "-O"}:
             continue
         if arg == "-filelist": # sourcekit dont support filelist, unfold it
             yield from getFileList(next(it), fileListCache)
