@@ -169,23 +169,10 @@ function! youcompleteme#Enable()
 
   if exists( '*prop_type_add' ) && exists( '*prop_type_delete' )
     call prop_type_delete( 'YCM-signature-help-current-argument' )
-    call prop_type_delete( 'YCM-signature-help-current-signature' )
-    call prop_type_delete( 'YCM-signature-help-signature' )
-
     call prop_type_add( 'YCM-signature-help-current-argument', {
           \   'highlight': 'PMenuSel',
           \   'combine':   0,
           \   'priority':  50,
-          \ } )
-    call prop_type_add( 'YCM-signature-help-current-signature', {
-          \   'highlight': 'PMenu',
-          \   'combine':   0,
-          \   'priority':  40,
-          \ } )
-    call prop_type_add( 'YCM-signature-help-signature', {
-          \   'highlight': 'PMenuSbar',
-          \   'combine':   0,
-          \   'priority':  40,
           \ } )
   endif
 endfunction
@@ -475,6 +462,14 @@ function! s:DisableOnLargeFile( buffer )
   return b:ycm_largefile
 endfunction
 
+function! s:HasAnyKey( dict, keys )
+  for key in a:keys
+    if has_key( a:dict, key )
+      return 1
+    endif
+  endfor
+  return 0
+endfunction
 
 function! s:AllowedToCompleteInBuffer( buffer )
   let buftype = getbufvar( a:buffer, '&buftype' )
@@ -491,9 +486,9 @@ function! s:AllowedToCompleteInBuffer( buffer )
 
   let whitelist_allows = type( g:ycm_filetype_whitelist ) != type( {} ) ||
         \ has_key( g:ycm_filetype_whitelist, '*' ) ||
-        \ has_key( g:ycm_filetype_whitelist, filetype )
+        \ s:HasAnyKey( g:ycm_filetype_whitelist, split( filetype, '\.' ) )
   let blacklist_allows = type( g:ycm_filetype_blacklist ) != type( {} ) ||
-        \ !has_key( g:ycm_filetype_blacklist, filetype )
+        \ !s:HasAnyKey( g:ycm_filetype_blacklist, split( filetype, '\.' ) )
 
   let allowed = whitelist_allows && blacklist_allows
   if allowed
@@ -557,11 +552,17 @@ function! s:SetCompleteFunc()
 endfunction
 
 
+function s:StopPoller( poller ) abort
+  call timer_stop( a:poller.id )
+  let a:poller.id = -1
+endfunction
+
+
 function! s:OnVimLeave()
   " Workaround a NeoVim issue - not shutting down timers correctly
   " https://github.com/neovim/neovim/issues/6840
   for poller in values( s:pollers )
-    call timer_stop( poller.id )
+    call s:StopPoller( poller )
   endfor
   exec s:python_command "ycm_state.OnVimLeave()"
 endfunction
@@ -618,13 +619,13 @@ endfunction
 
 
 function! s:OnBufferEnter()
+  call s:StartMessagePoll()
   if !s:VisitedBufferRequiresReparse()
     return
   endif
 
   call s:SetUpCompleteopt()
   call s:SetCompleteFunc()
-  call s:StartMessagePoll()
 
   exec s:python_command "ycm_state.OnBufferVisit()"
   " Last parse may be outdated because of changes from other buffers. Force a
@@ -682,7 +683,7 @@ function! s:OnFileReadyToParse( ... )
     call s:ClearSignatureHelp()
     exec s:python_command "ycm_state.OnFileReadyToParse()"
 
-    call timer_stop( s:pollers.file_parse_response.id )
+    call s:StopPoller( s:pollers.file_parse_response )
     let s:pollers.file_parse_response.id = timer_start(
           \ s:pollers.file_parse_response.wait_milliseconds,
           \ function( 's:PollFileParseResponse' ) )
@@ -729,11 +730,10 @@ function! s:OnInsertChar()
     return
   endif
 
-  call timer_stop( s:pollers.completion.id )
+  call s:StopPoller( s:pollers.completion )
   call s:CloseCompletionMenu()
 
-  " TODO: Do we really need this here?
-  call timer_stop( s:pollers.signature_help.id )
+  call s:StopPoller( s:pollers.signature_help )
 endfunction
 
 
@@ -742,10 +742,8 @@ function! s:OnDeleteChar( key )
     return a:key
   endif
 
-  call timer_stop( s:pollers.completion.id )
-  "
-  " TODO: Do we really need this here?
-  call timer_stop( s:pollers.signature_help.id )
+  call s:StopPoller( s:pollers.completion )
+  call s:StopPoller( s:pollers.signature_help )
   if pumvisible()
     return "\<C-y>" . a:key
   endif
@@ -754,7 +752,7 @@ endfunction
 
 
 function! s:StopCompletion( key )
-  call timer_stop( s:pollers.completion.id )
+  call s:StopPoller( s:pollers.completion )
 
   call s:ClearSignatureHelp()
 
@@ -829,7 +827,7 @@ function! s:OnInsertLeave()
     return
   endif
 
-  call timer_stop( s:pollers.completion.id )
+  call s:StopPoller( s:pollers.completion )
   let s:force_semantic = 0
   let s:completion = s:default_completion
 
@@ -954,13 +952,25 @@ function! s:RequestSignatureHelp()
     return
   endif
 
-  exec s:python_command "ycm_state.SendSignatureHelpRequest()"
-  call s:PollSignatureHelp()
+  if s:pollers.signature_help.id >= 0
+    " We're already polling.
+    return
+  endif
+
+  if s:Pyeval( 'ycm_state.SendSignatureHelpRequest()' )
+    call s:PollSignatureHelp()
+  endif
 endfunction
 
 
 function! s:PollSignatureHelp( ... )
   if !s:ShouldUseSignatureHelp()
+    return
+  endif
+
+  if a:0 == 0 && s:pollers.signature_help.id >= 0
+    " OK this is a bug. We have tried to poll for a response while the timer is
+    " already running. Just return and wait for the timer to fire.
     return
   endif
 
@@ -1037,7 +1047,7 @@ function! s:ClearSignatureHelp()
     return
   endif
 
-  call timer_stop( s:pollers.signature_help.id )
+  call s:StopPoller( s:pollers.signature_help )
   let s:signature_help = s:default_signature_help
   call s:Pyeval( 'ycm_state.ClearSignatureHelp()' )
 endfunction
@@ -1079,12 +1089,10 @@ function! s:RestartServer()
 
   exec s:python_command "ycm_state.RestartServer()"
 
-  call timer_stop( s:pollers.receive_messages.id )
-  let s:pollers.receive_messages.id = -1
-
+  call s:StopPoller( s:pollers.receive_messages )
   call s:ClearSignatureHelp()
 
-  call timer_stop( s:pollers.server_ready.id )
+  call s:StopPoller( s:pollers.server_ready )
   let s:pollers.server_ready.id = timer_start(
         \ s:pollers.server_ready.wait_milliseconds,
         \ function( 's:PollServerReady' ) )

@@ -23,7 +23,7 @@ from __future__ import absolute_import
 # Not installing aliases from python-future; it's unreliable and slow.
 from builtins import *  # noqa
 
-from future.utils import iteritems
+from future.utils import iteritems, itervalues
 import base64
 import json
 import logging
@@ -150,7 +150,7 @@ class YouCompleteMe( object ):
     self._user_notified_about_crash = False
     self._filetypes_with_keywords_loaded = set()
     self._server_is_ready_with_cache = False
-    self._message_poll_request = None
+    self._message_poll_requests = {}
 
     self._user_options = base.GetUserOptions()
     self._omnicomp = OmniCompleter( self._user_options )
@@ -389,34 +389,36 @@ class YouCompleteMe( object ):
       return completions
 
   def SendSignatureHelpRequest( self ):
-    filetype = vimsupport.CurrentFiletypes()[ 0 ]
-    if not self._signature_help_available_requests[ filetype ].Done():
-      return
-
-    sig_help_available = self._signature_help_available_requests[
-        filetype ].Response()
-    if sig_help_available == 'NO':
-      return
-
-    if sig_help_available == 'PENDING':
-      # Send another /signature_help_available request
-      self._signature_help_available_requests[ filetype ].Start( filetype )
-      return
-
+    """Send a signature help request, if we're ready to. Return whether or not a
+    request was sent (and should be checked later)"""
     if not self.NativeFiletypeCompletionUsable():
-      return
+      return False
 
     if not self._latest_completion_request:
-      return
+      return False
 
-    request_data = self._latest_completion_request.request_data.copy()
-    request_data[ 'signature_help_state' ] = self._signature_help_state.state
+    for filetype in vimsupport.CurrentFiletypes():
+      if not self._signature_help_available_requests[ filetype ].Done():
+        continue
 
-    self._AddExtraConfDataIfNeeded( request_data )
+      sig_help_available = self._signature_help_available_requests[
+          filetype ].Response()
+      if sig_help_available == 'NO':
+        continue
 
-    self._latest_signature_help_request = SignatureHelpRequest(
-      request_data )
-    self._latest_signature_help_request.Start()
+      if sig_help_available == 'PENDING':
+        # Send another /signature_help_available request
+        self._signature_help_available_requests[ filetype ].Start( filetype )
+        return False
+
+      request_data = self._latest_completion_request.request_data.copy()
+      request_data[ 'signature_help_state' ] = self._signature_help_state.state
+
+      self._AddExtraConfDataIfNeeded( request_data )
+
+      self._latest_signature_help_request = SignatureHelpRequest( request_data )
+      self._latest_signature_help_request.Start()
+      return True
 
 
   def SignatureHelpRequestReady( self ):
@@ -557,18 +559,17 @@ class YouCompleteMe( object ):
       # Try again in a jiffy
       return True
 
-    if not self._message_poll_request:
-      self._message_poll_request = MessagesPoll()
+    for w in vim.windows:
+      for filetype in vimsupport.FiletypesForBuffer( w.buffer ):
+        if filetype not in self._message_poll_requests:
+          self._message_poll_requests[ filetype ] = MessagesPoll( w.buffer )
 
-    if not self._message_poll_request.Poll( self ):
-      # Don't poll again until some event which might change the server's mind
-      # about whether to provide messages for the current buffer (e.g. buffer
-      # visit, file ready to parse, etc.)
-      self._message_poll_request = None
-      return False
+        # None means don't poll this filetype
+        if ( self._message_poll_requests[ filetype ] and
+             not self._message_poll_requests[ filetype ].Poll( self ) ):
+          self._message_poll_requests[ filetype ] = None
 
-    # Poll again in a jiffy
-    return True
+    return any( itervalues( self._message_poll_requests ) )
 
 
   def OnFileReadyToParse( self ):
@@ -881,7 +882,7 @@ class YouCompleteMe( object ):
   def ToggleLogs( self, *filenames ):
     logfiles = self.GetLogfiles()
     if not filenames:
-      sorted_logfiles = sorted( list( logfiles ) )
+      sorted_logfiles = sorted( logfiles )
       try:
         logfile_index = vimsupport.SelectFromList(
           'Which logfile do you wish to open (or close if already open)?',
