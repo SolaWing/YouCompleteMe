@@ -15,13 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with YouCompleteMe.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import unicode_literals
-from __future__ import print_function
-from __future__ import division
-from __future__ import absolute_import
-# Not installing aliases from python-future; it's unreliable and slow.
-from builtins import *  # noqa
-
+import json
 import logging
 from ycmd.utils import ToUnicode
 from ycm.client.base_request import ( BaseRequest, DisplayServerException,
@@ -97,17 +91,18 @@ class CompletionRequest( BaseRequest ):
     else:
       self._OnCompleteDone_FixIt()
 
-
-  def _GetCompletionsUserMayHaveCompleted( self ):
-   if self._complete_done_item is not None:
+  def CompletedItem( self ):
+    # cache slow vim evaluate
+    if self._complete_done_item is not None:
        return self._complete_done_item
+    self._complete_done_item = vimsupport.GetVariableValue( 'v:completed_item' )
+    return self._complete_done_item
 
-   def get():
-
-    completed_item = vimsupport.GetVariableValue( 'v:completed_item' )
+  def _GetExtraDataUserMayHaveCompleted( self ):
+    completed_item = self.CompletedItem()
 
     # If Vim supports user_data (8.0.1493 or later), we actually know the
-    # _exact_ element that was selected, having put its index in the
+    # _exact_ element that was selected, having put its extra_data in the
     # user_data field. Otherwise, we have to guess by matching the values in the
     # completed item and the list of completions. Sometimes this returns
     # multiple possibilities, which is essentially unresolvable.
@@ -116,20 +111,14 @@ class CompletionRequest( BaseRequest ):
       return _FilterToMatchingCompletions( completed_item, completions )
 
     if completed_item[ 'user_data' ]:
-      completions = self._RawResponse()[ 'completions' ]
-      try:
-          return [ completions[ int( completed_item[ 'user_data' ] ) ] ]
-      except IndexError:
-          pass
-    return []
+      return [ json.loads( completed_item[ 'user_data' ] ) ]
 
-   self._complete_done_item = get()
-   return self._complete_done_item
+    return []
 
 
   def _OnCompleteDone_Csharp( self ):
-    completions = self._GetCompletionsUserMayHaveCompleted()
-    namespaces = [ _GetRequiredNamespaceImport( c ) for c in completions ]
+    extra_datas = self._GetExtraDataUserMayHaveCompleted()
+    namespaces = [ _GetRequiredNamespaceImport( c ) for c in extra_datas ]
     namespaces = [ n for n in namespaces if n ]
     if not namespaces:
       return
@@ -148,8 +137,8 @@ class CompletionRequest( BaseRequest ):
 
 
   def _OnCompleteDone_FixIt( self ):
-    completions = self._GetCompletionsUserMayHaveCompleted()
-    fixit_completions = [ _GetFixItCompletion( c ) for c in completions ]
+    extra_datas = self._GetExtraDataUserMayHaveCompleted()
+    fixit_completions = [ _GetFixItCompletion( c ) for c in extra_datas ]
     fixit_completions = [ f for f in fixit_completions if f ]
     if not fixit_completions:
       return
@@ -167,34 +156,27 @@ class CompletionRequest( BaseRequest ):
       vimsupport.ReplaceChunks( fixit[ 'chunks' ], silent=True )
 
 
-def _GetRequiredNamespaceImport( completion ):
-  if ( 'extra_data' not in completion
-       or 'required_namespace_import' not in completion[ 'extra_data' ] ):
-    return None
-  return completion[ 'extra_data' ][ 'required_namespace_import' ]
+def _GetRequiredNamespaceImport( extra_data ):
+  return extra_data.get( 'required_namespace_import' )
 
 
-def _GetFixItCompletion( completion ):
-  if ( 'extra_data' not in completion
-       or 'fixits' not in completion[ 'extra_data' ] ):
-    return None
-
-  return completion[ 'extra_data' ][ 'fixits' ]
+def _GetFixItCompletion( extra_data ):
+  return extra_data.get( 'fixits' )
 
 
 def _FilterToMatchingCompletions( completed_item, completions ):
   """Filter to completions matching the item Vim said was completed"""
   match_keys = [ 'word', 'abbr', 'menu', 'info' ]
   matched_completions = []
-  for index, completion in enumerate( completions ):
-    item = _ConvertCompletionDataToVimData( index, completion )
+  for completion in completions:
+    item = _ConvertCompletionDataToVimData( completion )
 
     def matcher( key ):
       return ( ToUnicode( completed_item.get( key, "" ) ) ==
                ToUnicode( item.get( key, "" ) ) )
 
     if all( matcher( i ) for i in match_keys ):
-      matched_completions.append( completion )
+      matched_completions.append( completion.get( 'extra_data', {} ) )
   return matched_completions
 
 
@@ -223,7 +205,7 @@ def _GetCompletionMenuField( completion_data ):
   if len(abbr) > 60: abbr = abbr[:60] + "..."
   return abbr
 
-def _ConvertCompletionDataToVimData( completion_identifier, completion_data ):
+def _ConvertCompletionDataToVimData( completion_data ):
   # See :h complete-items for a description of the dictionary fields.
   return {
     'word'     : completion_data[ 'insertion_text' ],
@@ -235,7 +217,7 @@ def _ConvertCompletionDataToVimData( completion_identifier, completion_data ):
     'equal'    : 1,
     'dup'      : 1,
     'empty'    : 1,
-    # We store the completion item index as a string in the completion
+    # We store the completion item extra_data as a string in the completion
     # user_data. This allows us to identify the _exact_ item that was completed
     # in the CompleteDone handler, by inspecting this item from v:completed_item
     #
@@ -243,10 +225,10 @@ def _ConvertCompletionDataToVimData( completion_identifier, completion_data ):
     #
     # Note: Not all versions of Vim support this (added in 8.0.1483), but adding
     # the item to the dictionary is harmless in earlier Vims.
-    'user_data': str( completion_identifier )
+    # Note: Since 8.2.0084 we don't need to use json.dumps() here.
+    'user_data': json.dumps( completion_data.get( 'extra_data', {} ) )
   }
 
 
 def _ConvertCompletionDatasToVimDatas( response_data ):
-  return [ _ConvertCompletionDataToVimData( i, x )
-           for i, x in enumerate( response_data ) ]
+  return [ _ConvertCompletionDataToVimData( x ) for x in response_data ]
