@@ -24,7 +24,7 @@ recently it has been carrying on a simultaneous relationship with Python 3.
 Indeed all of YCM and ycmd code is Python 3 code, with a lot of gubbins
 to make it work also on Python 2. This makes the code more complex,
 requires double testing of everything, and restricts the developers from using
-certain new langauge features, ultimately restricting the features we can
+certain new language features, ultimately restricting the features we can
 deliver to users.
 
 On 1st January 2020, Python 2 will be officially end of life. And therefore, so
@@ -114,9 +114,9 @@ YouCompleteMe is a fast, as-you-type, fuzzy-search code completion engine for
 - and an omnifunc-based completer that uses data from Vim's omnicomplete system
   to provide semantic completions for many other languages (Ruby, PHP etc.).
 
-![YouCompleteMe GIF demo](https://i.imgur.com/0OP4ood.gif)
+![YouCompleteMe GIF completion demo](https://i.imgur.com/0OP4ood.gif)
 
-Here's an explanation of what happens in the short GIF demo above.
+Here's an explanation of what happens in the last GIF demo above.
 
 First, realize that **no keyboard shortcuts had to be pressed** to get the list
 of completion candidates at any point in the demo. The user just types and the
@@ -167,22 +167,48 @@ features plus extra:
 
 **And that's not all...**
 
+YCM might be the only vim completion engine with the correct Unicode support.
+Though we do assume UTF-8 everywhere.
+
+![YouCompleteMe GIF unicode demo](https://user-images.githubusercontent.com/10026824/34471853-af9cf32a-ef53-11e7-8229-de534058ddc4.gif)
+
 YCM also provides [semantic IDE-like features](#quick-feature-summary) in a
 number of languages, including:
 
 - displaying signature help (argument hints) when entering the arguments to a
-  function call
-- finding declarations, definitions, usages, etc. of identifiers,
-- displaying type information for classes, variables, functions etc.,
-- displaying documentation for methods, members, etc. in the preview window,
-- fixing common coding errors, like missing semi-colons, typos, etc.,
-- semantic renaming of variables across files,
+  function call (Vim only)
+- [finding declarations, definitions, usages](#goto-commands), etc.
+  of identifiers,
+- [displaying type information](#the-gettype-subcommand) for classes,
+  variables, functions etc.,
+- displaying documentation for methods, members, etc. in the [preview
+  window](#the-getdoc-subcommand), or in a
+  [popup next to the cursor](#the-gycm_auto_hover-option) (Vim only)
+- [fixing common coding errors](#the-fixit-subcommand), like missing
+  semi-colons, typos, etc.,
+- [semantic renaming](#the-refactorrename-subcommand) of variables across files,
 - formatting code,
 - removing unused imports, sorting imports, etc.
 
 For example, here's a demo of signature help:
 
 ![Signature Help Early Demo](https://user-images.githubusercontent.com/10584846/58738348-5060da80-83fd-11e9-9537-d07fdbf4554c.gif)
+
+Below we can see YCM being able to do a few things:
+
+- Retrieve references across files
+- Go to declaration/definition
+- Expand `auto` in C++
+- Fix some common errors with `FixIt`
+- Not shown in the gif is `GoToImplementation` and `GoToType`
+  for servers that support it.
+
+![YouCompleteMe GIF subcommands demo](https://i.imgur.com/nmUUbdl.gif)
+
+And here's some documentation being shown in a hover popup, automatically and
+manually:
+
+![hover demo](https://user-images.githubusercontent.com/10584846/80312146-91af6500-87db-11ea-996b-7396f3134d1f.gif)
 
 Features vary by file type, so make sure to check out the [file type feature
 summary](#quick-feature-summary) and the
@@ -201,16 +227,24 @@ Installation
 
 - Install cmake, macvim and python; Note that the *system* vim is not supported.
 
+&nbsp;
+
     brew install cmake macvim python
 
 - Install mono, go, node and npm
+
+&nbsp;
 
     brew install mono go nodejs
 
 - Compile YCM
 
+&nbsp;
+
     cd ~/.vim/bundle/YouCompleteMe
     python3 install.py --all
+
+- For plugging an arbitrary LSP server, check [the relevant section](#plugging-an-arbitrary-lsp-server)
 
 #### Explanation for the quick start
 
@@ -284,13 +318,19 @@ that are conservatively turned off by default that you may want to turn on.
 
 - Install cmake, vim and python
 
+&nbsp;
+
     apt install build-essential cmake vim python3-dev
 
 - Install mono-complete, go, node and npm
 - Compile YCM
 
+&nbsp;
+
     cd ~/.vim/bundle/YouCompleteMe
     python3 install.py --all
+
+- For plugging an arbitrary LSP server, check [the relevant section](#plugging-an-arbitrary-lsp-server)
 
 #### Explanation for the quick start
 
@@ -317,13 +357,19 @@ Install development tools, CMake, and Python headers:
 
 - Fedora 27 and later:
 
+&nbsp;
+
       sudo dnf install cmake gcc-c++ make python3-devel
 
 - Ubuntu 14.04:
 
+&nbsp;
+
       sudo apt install build-essential cmake3 python3-dev
 
 - Ubuntu 16.04 and later:
+
+&nbsp;
 
       sudo apt install build-essential cmake python3-dev
 
@@ -376,10 +422,13 @@ that are conservatively turned off by default that you may want to turn on.
 - Install go, node and npm
 - Compile YCM
 
+&nbsp;
+
     cd YouCompleteMe
     python3 install.py --all
 
 - Add `set encoding=utf-8` to your [vimrc][]
+- For plugging an arbitrary LSP server, check [the relevant section](#plugging-an-arbitrary-lsp-server)
 
 #### Explanation for the quick start
 
@@ -482,13 +531,19 @@ that are conservatively turned off by default that you may want to turn on.
 
 - Install cmake
 
+&nbsp;
+
     pkg install cmake
 
 - Install xbuild, go, node and npm
 - Compile YCM
 
+&nbsp;
+
     cd ~/.vim/bundle/YouCompleteMe
     python3 install.py --all
+
+- For plugging an arbitrary LSP server, check [the relevant section](#plugging-an-arbitrary-lsp-server)
 
 #### Explanation for the quick start
 
@@ -564,7 +619,7 @@ that are conservatively turned off by default that you may want to turn on.
 
 ### Full Installation Guide
 
-The [full installation guide][wiki-full-installation] has been moved to the wiki.
+The [full installation guide][wiki-full-install] has been moved to the wiki.
 
 Quick Feature Summary
 -----
@@ -580,7 +635,7 @@ Quick Feature Summary
 ### C-family languages (C, C++, Objective C, Objective C++, CUDA)
 
 * Semantic auto-completion with automatic fixes
-* Signature help (when [using clangd](#selecting-a-c-family-completion-engine))
+* Signature help
 * Real-time diagnostic display
 * Go to include/declaration/definition (`GoTo`, etc.)
 * View documentation comments for identifiers (`GetDoc`)
@@ -620,6 +675,7 @@ Quick Feature Summary
 * Real-time diagnostic display
 * Go to declaration/definition (`GoTo`, etc.)
 * Go to type definition (`GoToType`)
+* Go to implementation (`GoToImplementation`)
 * Automatically fix certain errors (`FixIt`)
 * View documentation comments for identifiers (`GetDoc`)
 * Type information for identifiers (`GetType`)
@@ -1333,6 +1389,22 @@ will be used as the `kwargs[ 'language' ]`.
 See [the LSP Examples](https://github.com/ycm-core/lsp-examples) project for more
 examples of configuring the likes of PHP, Ruby, Kotlin, and D.
 
+#### LSP Configuration
+
+Many LSP servers allow some level of user configuration. YCM enables this with
+the help of `.ycm_extra_conf.py` files. Here's an example of jdt.ls user
+configuration.
+
+```python
+def Settings( **kwargs ):
+  if kwargs[ 'language' ] == 'java':
+    return { 'ls': { 'java.format.onType.enabled': True } }
+```
+
+The `ls` key tells YCM that the dictionary should be passed to thet LSP server.
+For each of the LSP server's configuration you should look up the respective
+server's documentation.
+
 #### Using `omnifunc` for semantic completion
 
 YCM will use your `omnifunc` (see `:h omnifunc` in Vim) as a source for semantic
@@ -1350,22 +1422,6 @@ and don't forget to have `let g:EclimCompletionMethod = 'omnifunc'` in your
 vimrc. This will make YCM and Eclim play nice; YCM will use Eclim's omnifuncs as
 the data source for semantic completions and provide the auto-triggering and
 subsequence-based matching (and other YCM features) on top of it.
-
-### LSP Configuration
-
-Many LSP servers allow some level of user configuration. YCM enables this with
-the help of `.ycm_extra_conf.py` files. Here's an example of jdt.ls user
-configuration.
-
-```python
-def Settings( **kwargs ):
-  if kwargs[ 'language' ] == 'java':
-    return { 'ls': { 'java.format.onType.enabled': True } }
-```
-
-The `ls` key tells YCM that the dictionary should be passed to thet LSP server.
-For each of the LSP server's configuration you should look up the respective
-server's documentation.
 
 ### Writing New Semantic Completers
 
@@ -1644,7 +1700,7 @@ Looks up the symbol under the cursor and jumps to its implementation (i.e.
 non-interface). If there are multiple implementations, instead provides a list
 of implementations to choose from.
 
-Supported in filetypes: `cs, java, rust, typescript, javascript`
+Supported in filetypes: `cs, go, java, rust, typescript, javascript`
 
 #### The `GoToImplementationElseDeclaration` subcommand
 
@@ -1912,6 +1968,48 @@ For example:
 ```viml
   call youcompleteme#GetWarningCount()
 ```
+
+### The `youcompleteme#GetCommandResponse( ... )` function
+
+Run a [completer subcommand](#ycmcompleter-subcommands) and return the result as
+a string. This can be useful for example to display the `GetGoc` output in a
+popup window, e.g.:
+
+```viml
+let s:ycm_hover_popup = -1
+function s:Hover()
+  let response = youcompleteme#GetCommandResponse( 'GetDoc' )
+  if response == ''
+    return
+  endif
+
+  call popup_hide( s:ycm_hover_popup )
+  let s:ycm_hover_popup = popup_atcursor( balloon_split( response ), {} )
+endfunction
+
+" CursorHold triggers in normal mode after a delay
+autocmd CursorHold * call s:Hover()
+" Or, if you prefer, a mapping:
+nnoremap <silent> <leader>D :call <SID>Hover()<CR>
+```
+
+**NOTE**: This is only an example, for real hover support, see
+[`g:ycm_auto_hover`](#the-gycm_auto_hover-option).
+
+If the completer subcommand result is not a string (for example, it's a FixIt or
+a Location), or if the completer subcommand raises an error, an empty string is
+returned, so that calling code does not have to check for complex error
+conditions.
+
+The arguments to the function are the same as the arguments to the
+`:YcmCompleter` ex command, e.g. the name of the subcommand, followed by any
+additional subcommand arguments. As with the `YcmCompleter` command, if the
+first argument is `ft=<filetype>` the request is targetted at the specified
+filetype completer. This is an advanced usage and not necessary in most cases.
+
+NOTE: The request is run synchronously and blocks Vim until the response is
+received, so we do not recommend running this as part of an autocommand that
+triggers frequently.
 
 Autocommands
 ------------
@@ -2268,6 +2366,56 @@ Default: `1`
 ```viml
 let g:ycm_echo_current_diagnostic = 1
 ```
+
+### The `g:ycm_auto_hover` option
+
+This option controls whether or not YCM shows documentation in a popup at the
+cursor location after a short delay. Only supported in Vim.
+
+When this option is set to `'CursorHold'`, the popup is displayed on the
+`CursorHold` autocommand. See `:help CursorHold` for the details, but this means
+that it is displayed after `updatetime` milliseconds.  When set to an empty
+string, the popup is not automatically displayed.
+
+In addition to this setting, there is the `<plug>(YCMHover)` mapping, which can
+be used to manually trigger or hide the popup (it works like a toggle).
+For example:
+
+```viml
+nmap <leader>D <plug>(YCMHover)
+```
+
+After dismissing the popup with this mapping, it will not be automatically
+triggered again until the cursor is moved (i.e. `CursorMoved` autocommand).
+
+The displayed documentation depends on what the completer for the current
+language supports. It's selected heuristically in this order of preference:
+
+1. `GetHover` with `markdown` syntax
+2. `GetDoc` with no syntax
+3. `GetType` with the syntax of the current file. 
+
+You can customise this by manually setting up `b:ycm_hover` to your liking. This
+buffer-local variable can be set to a dictionary with the following keys:
+
+* `command`: The YCM completer subcommand which should be run on hover
+* `syntax`: The syntax to use (as in `set syntax=`) in the popup window for
+  highlighting.
+
+For example, to use C/C++ syntax highlighting in the popup for C-family
+languages, add something like this to your vimrc:
+
+```viml
+augroup MyYCMCustom
+  autocmd!
+  autocmd FileType c,cpp let b:ycm_hover = {
+    \ 'command': 'GetDoc',
+    \ 'syntax': &filetype
+    \ }
+augroup END
+```
+
+Default: `'CursorHold'`
 
 ### The `g:ycm_filter_diagnostics` option
 
@@ -2968,6 +3116,46 @@ Default: `0`
 " Disable signature help
 let g:ycm_disable_signature_help = 1
 ```
+
+### The `g:ycm_gopls_binary_path` option
+
+In case the system-wide `gopls` binary is newer than the bundled one, setting
+this option to the path of the system-wide `gopls` would make YCM use that one
+instead.
+
+If the path is just `gopls`, YCM will search in `$PATH`.
+
+
+### The `g:ycm_gopls_args` option
+
+Similar to [the `g:ycm_clangd_args`](#the-gycm-clangd-args), this option allows
+passing additional flags to the `gopls` command line.
+
+Default: `[]`
+
+```viml
+let g:ycm_gopls_args = []
+```
+
+
+### The `g:ycm_rls_binary_path` and `g:ycm_rustc_binary_path` options
+
+Similar to [the `gopls` path](#the-gycm-gopls-binaty-path), these two options
+tell YCM which `rls` and `rustc` to use.
+
+NOTE: You *need* to either set both or none of these two.
+
+
+### The `g:ycm_tsserver_binary_path` option
+
+Similar to [the `gopls` path](#the-gycm-gopls-binaty-path), this option
+tells YCM where is the TSServer executable located.
+
+### The `g:ycm_roslyn_binary_path` option
+
+Similar to [the `gopls` path](#the-gycm-gopls-binaty-path), this option
+tells YCM where is the Omnisharp-Roslyn executable located.
+
 
 FAQ
 ---

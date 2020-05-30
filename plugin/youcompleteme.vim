@@ -137,9 +137,6 @@ let g:ycm_key_list_stop_completion =
 let g:ycm_key_invoke_completion =
       \ get( g:, 'ycm_key_invoke_completion', '<C-Space>' )
 
-let g:ycm_key_param_template = 
-            \ get(g:, 'ycm_key_param_template', '<CR>')
-
 let g:ycm_key_detailed_diagnostics =
       \ get( g:, 'ycm_key_detailed_diagnostics', '<leader>d' )
 
@@ -208,6 +205,9 @@ let g:ycm_goto_buffer_command =
 
 let g:ycm_disable_for_files_larger_than_kb =
       \ get( g:, 'ycm_disable_for_files_larger_than_kb', 1000 )
+
+let g:ycm_auto_hover =
+      \ get( g:, 'ycm_auto_hover', 'CursorHold' )
 
 "
 " List of ycmd options.

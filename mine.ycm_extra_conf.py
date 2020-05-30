@@ -180,12 +180,13 @@ def cmd_split(s):
 
 def readFileList(path):
     with open(path) as f:
-        return cmd_split(f.read())
+        return [os.path.realpath(i) for i in cmd_split(f.read())]
 
 def getFileList(path, cache):
     files = cache.get(path)
     if files is None:
         files = readFileList(path)
+        print(f"file list: {files}")
         cache[path] = files
     return files
 
@@ -275,8 +276,7 @@ def FlagsForSwift(filename, **kwargs):
         command = CommandForSwiftInCompile(filename, compileFile, store)
         print(f"command for {filename} is: {command}")
         if command:
-            import shlex
-            flags = shlex.split(command)[1:] # ignore executable
+            flags = cmd_split(command)[1:] # ignore executable
             final_flags = list(filterSwiftArgs(flags, store.setdefault('filelist', {})))
 
     if not final_flags and flagFile:

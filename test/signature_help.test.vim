@@ -1,5 +1,21 @@
 let s:timer_interval = 2000
 
+function! s:WaitForSigHelpAvailable( filetype )
+  let tries = 0
+  call WaitFor( {-> s:_CheckSignatureHelpAvailable( a:filetype ) } )
+  while py3eval(
+        \ 'ycm_state._signature_help_available_requests[ '
+        \ . 'vim.eval( "a:filetype" ) ].Response() == "PENDING"' ) &&
+        \ tries < 10
+    " Force sending another request
+    py3 ycm_state._signature_help_available_requests[
+          \ vim.eval( 'a:filetype' ) ].Start( vim.eval( 'a:filetype' ) )
+    call WaitFor( {-> s:_CheckSignatureHelpAvailable( a:filetype ) } )
+    let tries += 1
+  endwhile
+  call ch_log( "Signature help is avaialble now for " . a:filetype )
+endfunction
+
 function! s:_ClearSigHelp()
   pythonx _sh_state = sh.UpdateSignatureHelp( _sh_state, {} )
   call assert_true( pyxeval( '_sh_state.popup_win_id is None' ),
@@ -34,31 +50,6 @@ function s:_GetSigHelpWinID()
   return s:popup_win_id
 endfunction
 
-function! s:_CheckPopupPosition( winid, pos )
-  redraw
-  let actual_pos = popup_getpos( a:winid )
-  let ret = 0
-  if a:pos->empty()
-    return assert_true( actual_pos->empty(), 'popup pos empty' )
-  endif
-  for c in keys( a:pos )
-    if !has_key( actual_pos, c )
-      let ret += 1
-      call assert_report( 'popup with ID '
-                        \ . string( a:winid )
-                        \ . ' has no '
-                        \ . c
-                        \ . ' in: '
-                        \ . string( actual_pos ) )
-    else
-      let ret += assert_equal( a:pos[ c ],
-                             \ actual_pos[ c ],
-                             \ c . ' in: ' . string( actual_pos ) )
-    endif
-  endfor
-  return ret
-endfunction
-
 function! s:_CheckSigHelpAtPos( sh, cursor, pos )
   call setpos( '.', [ 0 ] + a:cursor )
   redraw
@@ -66,7 +57,7 @@ function! s:_CheckSigHelpAtPos( sh, cursor, pos )
                                             \ vim.eval( 'a:sh' ) )
   redraw
   let winid = pyxeval( '_sh_state.popup_win_id' )
-  call s:_CheckPopupPosition( winid, a:pos )
+  call youcompleteme#test#popup#CheckPopupPosition( winid, a:pos )
 endfunction
 
 function! SetUp()
@@ -120,10 +111,10 @@ endfunction
 function! Test_Signatures_After_Trigger()
   call youcompleteme#test#setup#OpenFile(
         \ '/test/testdata/vim/mixed_filetype.vim',
-        \ { 'native_ft': 0 } )
+        \ { 'native_ft': 0, 'force_delay': v:true } )
 
   call WaitFor( {-> s:_CheckSignatureHelpAvailable( 'vim' ) } )
-  call WaitFor( {-> s:_CheckSignatureHelpAvailable( 'python' ) } )
+  call s:WaitForSigHelpAvailable( 'python' )
 
   call setpos( '.', [ 0, 3, 17 ] )
 
@@ -193,7 +184,7 @@ function! Test_Signatures_With_PUM_NoSigns()
         \ '/third_party/ycmd/ycmd/tests/clangd/testdata/general_fallback'
         \ . '/make_drink.cc', {} )
 
-  call WaitFor( {-> s:_CheckSignatureHelpAvailable( 'cpp' ) } )
+  call s:WaitForSigHelpAvailable( 'cpp' )
 
   " Make sure that error signs don't shift the window
   setlocal signcolumn=no
@@ -218,8 +209,9 @@ function! Test_Signatures_With_PUM_NoSigns()
 
 
     " Popup is shifted due to 80 column screen
-    call s:_CheckPopupPosition( s:_GetSigHelpWinID(),
-                              \ { 'line': 5, 'col': 5 } )
+    call youcompleteme#test#popup#CheckPopupPosition(
+          \ s:_GetSigHelpWinID(),
+          \ { 'line': 5, 'col': 5 } )
 
     call test_override( 'ALL', 0 )
     call feedkeys( "\<ESC>", 't' )
@@ -237,8 +229,9 @@ function! Test_Signatures_With_PUM_NoSigns()
           \   )
           \ } )
     " Popup is shifted left due to 80 char screen
-    call s:_CheckPopupPosition( s:_GetSigHelpWinID(),
-                              \ { 'line': 5, 'col': 5 } )
+    call youcompleteme#test#popup#CheckPopupPosition(
+          \ s:_GetSigHelpWinID(),
+          \ { 'line': 5, 'col': 5 } )
 
     call timer_start( s:timer_interval, funcref( 'Check2' ) )
     call feedkeys( ' TypeOfD', 't' )
@@ -268,7 +261,7 @@ function! Test_Signatures_With_PUM_Signs()
         \ '/third_party/ycmd/ycmd/tests/clangd/testdata/general_fallback'
         \ . '/make_drink.cc', {} )
 
-  call WaitFor( {-> s:_CheckSignatureHelpAvailable( 'cpp' ) } )
+  call s:WaitForSigHelpAvailable( 'cpp' )
 
   " Make sure that sign causes the popup to shift
   setlocal signcolumn=auto
@@ -296,8 +289,9 @@ function! Test_Signatures_With_PUM_Signs()
     " Then shifts back due to 80 character screen width
     " FIXME: This test was supposed to show the shifting right. Write another
     " one which uses a much smaller popup to do that.
-    call s:_CheckPopupPosition( s:_GetSigHelpWinID(),
-                              \ { 'line': 5, 'col': 5 } )
+    call youcompleteme#test#popup#CheckPopupPosition(
+          \ s:_GetSigHelpWinID(),
+          \ { 'line': 5, 'col': 5 } )
 
     call test_override( 'ALL', 0 )
     call feedkeys( "\<ESC>", 't' )
@@ -315,8 +309,9 @@ function! Test_Signatures_With_PUM_Signs()
           \   )
           \ } )
     " Popup is shifted left due to 80 char screen
-    call s:_CheckPopupPosition( s:_GetSigHelpWinID(),
-                              \ { 'line': 5, 'col': 5 } )
+    call youcompleteme#test#popup#CheckPopupPosition(
+          \ s:_GetSigHelpWinID(),
+          \ { 'line': 5, 'col': 5 } )
 
     call timer_start( s:timer_interval, funcref( 'Check2' ) )
     call feedkeys( ' TypeOfD', 't' )
@@ -508,12 +503,14 @@ endfunction
 
 function! Test_Signatures_TopLine()
   call youcompleteme#test#setup#OpenFile( 'test/testdata/python/test.py', {} )
-  call WaitFor( {-> s:_CheckSignatureHelpAvailable( 'python' ) } )
+  call s:WaitForSigHelpAvailable( 'python' )
   call setpos( '.', [ 0, 1, 24 ] )
   call test_override( 'char_avail', 1 )
 
   function! Check( id ) closure
-    call s:_CheckPopupPosition( s:_GetSigHelpWinID(), { 'line': 2, 'col': 23 } )
+    call youcompleteme#test#popup#CheckPopupPosition(
+          \ s:_GetSigHelpWinID(),
+          \ { 'line': 2, 'col': 23 } )
     call test_override( 'ALL', 0 )
     call feedkeys( "\<ESC>" )
   endfunction
@@ -528,13 +525,15 @@ endfunction
 
 function! Test_Signatures_TopLineWithPUM()
   call youcompleteme#test#setup#OpenFile( 'test/testdata/python/test.py', {} )
-  call WaitFor( {-> s:_CheckSignatureHelpAvailable( 'python' ) } )
+  call s:WaitForSigHelpAvailable( 'python' )
   call setpos( '.', [ 0, 1, 24 ] )
   call test_override( 'char_avail', 1 )
 
   function! CheckSigHelpAndTriggerCompletion( id ) closure
     " Popup placed below the cursor
-    call s:_CheckPopupPosition( s:_GetSigHelpWinID(), { 'line': 2, 'col': 23 } )
+    call youcompleteme#test#popup#CheckPopupPosition(
+          \ s:_GetSigHelpWinID(),
+          \ { 'line': 2, 'col': 23 } )
 
     " Push more characters into the typeahead buffer to trigger insert mode
     " completion.
@@ -562,7 +561,7 @@ function! Test_Signatures_TopLineWithPUM()
           \     'popup_win_id'
           \   )
           \ } )
-    call s:_CheckPopupPosition( s:popup_win_id, {} )
+    call youcompleteme#test#popup#CheckPopupPosition( s:popup_win_id, {} )
 
     " We're done in insert mode now.
     call test_override( 'ALL', 0 )
