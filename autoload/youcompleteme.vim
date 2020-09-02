@@ -505,7 +505,14 @@ function! s:SetUpCompleteopt()
   " Also, having this option set breaks the plugin.
   set completeopt-=longest
 
-  if g:ycm_add_preview_to_completeopt
+  " A non-numeric string compares equal to an integer zero. Without the type
+  " check, users on a recent vim and disabling preview by setting it to 0
+  " get `popup` added instead.
+  if type( g:ycm_add_preview_to_completeopt ) == type( '' ) &&
+	\ g:ycm_add_preview_to_completeopt ==# 'popup' && 
+        \ ( v:version > 801 || ( v:version == 801 && has( 'patch1880' ) ) )
+    set completeopt+=popup
+  elseif g:ycm_add_preview_to_completeopt
     set completeopt+=preview
   endif
 endfunction

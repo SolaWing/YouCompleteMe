@@ -165,27 +165,26 @@ class YouCompleteMe:
       python_interpreter = paths.PathToPythonInterpreter()
     except RuntimeError as error:
       error_message = (
-        "Unable to start the ycmd server. {0}. "
+        f"Unable to start the ycmd server. { str( error ).rstrip( '.' ) }. "
         "Correct the error then restart the server "
-        "with ':YcmRestartServer'.".format( str( error ).rstrip( '.' ) ) )
+        "with ':YcmRestartServer'." )
       self._logger.exception( error_message )
       vimsupport.PostVimMessage( error_message )
       return
 
     args = [ python_interpreter,
              paths.PathToServerScript(),
-             '--port={0}'.format( server_port ),
-             '--options_file={0}'.format( options_file.name ),
-             '--log={0}'.format( self._user_options[ 'log_level' ] ),
-             '--idle_suicide_seconds={0}'.format(
-                SERVER_IDLE_SUICIDE_SECONDS ) ]
+             f'--port={ server_port }',
+             f'--options_file={ options_file.name }',
+             f'--log={ self._user_options[ "log_level" ] }',
+             f'--idle_suicide_seconds={ SERVER_IDLE_SUICIDE_SECONDS }' ]
 
     self._server_stdout = utils.CreateLogfile(
         SERVER_LOGFILE_FORMAT.format( port = server_port, std = 'stdout' ) )
     self._server_stderr = utils.CreateLogfile(
         SERVER_LOGFILE_FORMAT.format( port = server_port, std = 'stderr' ) )
-    args.append( '--stdout={0}'.format( self._server_stdout ) )
-    args.append( '--stderr={0}'.format( self._server_stderr ) )
+    args.append( f'--stdout={ self._server_stdout }' )
+    args.append( f'--stderr={ self._server_stderr }' )
 
     if self._user_options[ 'keep_logfiles' ]:
       args.append( '--keep_logfiles' )
@@ -230,7 +229,7 @@ class YouCompleteMe:
     log_level = self._user_options[ 'log_level' ]
     numeric_level = getattr( logging, log_level.upper(), None )
     if not isinstance( numeric_level, int ):
-      raise ValueError( 'Invalid log level: {0}'.format( log_level ) )
+      raise ValueError( f'Invalid log level: { log_level }' )
     self._logger.setLevel( numeric_level )
 
 
@@ -849,19 +848,17 @@ class YouCompleteMe:
   def DebugInfo( self ):
     debug_info = ''
     if self._client_logfile:
-      debug_info += 'Client logfile: {0}\n'.format( self._client_logfile )
+      debug_info += f'Client logfile: { self._client_logfile }\n'
     extra_data = {}
     self._AddExtraConfDataIfNeeded( extra_data )
     debug_info += FormatDebugInfoResponse( SendDebugInfoRequest( extra_data ) )
-    debug_info += 'Server running at: {0}\n'.format(
-      BaseRequest.server_location )
+    debug_info += f'Server running at: { BaseRequest.server_location }\n'
     if self._server_popen:
-      debug_info += 'Server process ID: {0}\n'.format( self._server_popen.pid )
+      debug_info += f'Server process ID: { self._server_popen.pid }\n'
     if self._server_stdout and self._server_stderr:
       debug_info += ( 'Server logfiles:\n'
-                      '  {0}\n'
-                      '  {1}'.format( self._server_stdout,
-                                      self._server_stderr ) )
+                      f'  { self._server_stdout }\n'
+                      f'  { self._server_stderr }' )
     return debug_info
 
 
@@ -1003,12 +1000,18 @@ class YouCompleteMe:
 
   def _AddExtraConfDataIfNeeded( self, extra_data ):
     def BuildExtraConfData( extra_conf_vim_data ):
-        return dict( ( key, vimsupport.VimExpressionToPythonType( expr ) )
-                    for key, expr in
-                    map(lambda i:
-                            ( i[0], i[1] ) if isinstance( i, list ) else
-                            ( i, i ),
-                        extra_conf_vim_data ) )
+      extra_conf_data = {}
+      for i in extra_conf_vim_data:
+        key, expr = ( i[0], i[1] ) if isinstance( i, list ) else ( i, i )
+        try:
+          extra_conf_data[ key ] = vimsupport.VimExpressionToPythonType( expr )
+        except vim.error:
+          message = (
+            f"Error evaluating '{ expr }' in the 'g:ycm_extra_conf_vim_data' "
+            "option." )
+          vimsupport.PostVimMessage( message, truncate = True )
+          self._logger.exception( message )
+      return extra_conf_data
 
     extra_conf_vim_data = self._user_options[ 'extra_conf_vim_data' ]
     if extra_conf_vim_data:
