@@ -32,28 +32,38 @@
 import os
 import subprocess
 import re
+import typing
+
 
 def fileInDir(directory, contains):
     for f in os.listdir(directory):
-        if contains(f): return os.path.join(directory, f)
+        if contains(f):
+            return os.path.join(directory, f)
 
     return None
 
+
 def pchFileInDir(directory):
-    return fileInDir(directory, lambda f: f.endswith('.pch'))
+    return fileInDir(directory, lambda f: f.endswith(".pch"))
+
 
 def findProjectRootAndPchFile(filename):
     """ return project root or None. if not found"""
     filename = os.path.abspath(filename)
     directory = os.path.dirname(filename)
     pchFile = None
-    while directory and directory != '/':
+    while directory and directory != "/":
         # try to find a pchFile in parent directory
-        if pchFile is None: pchFile = pchFileInDir(directory)
+        if pchFile is None:
+            pchFile = pchFileInDir(directory)
 
         p = os.path.join(directory, ".flags")
         if os.path.isfile(p):
-            return (directory, pchFile, p) # prefer use swiftflags file as module root directory
+            return (
+                directory,
+                pchFile,
+                p,
+            )  # prefer use swiftflags file as module root directory
         if isProjectRoot(directory):
             return (directory, pchFile, None)
         else:
@@ -61,28 +71,33 @@ def findProjectRootAndPchFile(filename):
     else:
         return (None, None, None)
 
+
 def filterCArgs(items):
     """
     f: should return True to accept, return number to skip next number flags
     """
     it = iter(items)
     try:
-      while True:
-        arg = next(it)
+        while True:
+            arg = next(it)
 
-        if arg in {"-o", "-c",  "-x", "--serialize-diagnostics"}:
-            next(it)
-            continue
-        if arg == "-fmodules": continue # YCM bugs, not support modules
-        if arg.startswith("-std"): continue # skip for custom set
-        if arg.startswith("-emit"):
-            if arg.endswith("-path"): next(it)
-            continue
-        yield arg
+            if arg in {"-o", "-c", "-x", "--serialize-diagnostics"}:
+                next(it)
+                continue
+            if arg == "-fmodules":
+                continue  # YCM bugs, not support modules
+            if arg.startswith("-std"):
+                continue  # skip for custom set
+            if arg.startswith("-emit"):
+                if arg.endswith("-path"):
+                    next(it)
+                continue
+            yield arg
     except StopIteration as e:
         pass
 
-def FlagsForFile( filename, **kwargs ):
+
+def FlagsForFile(filename, **kwargs):
     final_flags = []
 
     # find all headers in file project
@@ -93,56 +108,71 @@ def FlagsForFile( filename, **kwargs ):
             headers, frameworks = findAllHeaderDirectory(project_root)
             #  print("header&framework:\n",headers, frameworks, file=out)
             if headers:
-                final_flags += ['-I'+ s for s in headers]
+                final_flags += ["-I" + s for s in headers]
             if frameworks:
-                final_flags += ['-iframework'+s for s in frameworks]
+                final_flags += ["-iframework" + s for s in frameworks]
             if pchFile:
-                final_flags.append('-include'+pchFile)
+                final_flags.append("-include" + pchFile)
             a = additionalFlags(flagFile)
-            if a: final_flags += (arg for arg in filterCArgs(a))
+            if a:
+                final_flags += (arg for arg in filterCArgs(a))
         except Exception as e:
             import logging
-            logging.exception('headers append fail!')
 
-    if any(filename.endswith(ext) for ext in ('.m', '.c', '.h')):
-        final_flags.extend(['-std=gnu11', '-x', 'objective-c'])
+            logging.exception("headers append fail!")
+
+    if any(filename.endswith(ext) for ext in (".m", ".c")):
+        final_flags.extend(["-std=gnu11", "-x", "objective-c"])
     else:
-        final_flags.extend(['-std=gnu++14', '-x', 'objective-c++'])
+        final_flags.extend(["-std=gnu++14", "-x", "objective-c++"])
     try:
-        final_flags += kwargs['client_data']['ycm_additional_flags']
+        final_flags += kwargs["client_data"]["ycm_additional_flags"]
     except Exception as e:
         pass
 
-    return {
-        'flags': final_flags,
-        'do_cache': True
-    }
+    return {"flags": final_flags, "do_cache": True}
+
+cmd_split_pattern = re.compile(
+    r"""
+"([^"]*)" |     # like "xxx xxx"
+'([^']*)' |     # like 'xxx xxx'
+((?:\\[ ]|\S)+) # like xxx\ xxx
+""",
+    re.X,
+)
+
 
 def isProjectRoot(directory):
-    return os.path.exists(os.path.join(directory, '.git'))
+    return os.path.exists(os.path.join(directory, ".git"))
+
 
 def additionalFlags(flagsPath):
     if flagsPath and os.path.isfile(flagsPath):
+
         def valid(s):
-            return s and not s.startswith('#')
+            return s and not s.startswith("#")
+
         with open(flagsPath) as f:
-            return list(filter( valid, (line.strip() for line in f) ))
+            return list(filter(valid, (line.strip() for line in f)))
     return []
 
 
 headerDirsCacheDict = dict()
+
+
 def findAllHeaderDirectory(rootDirectory):
     headerDirs = headerDirsCacheDict.get(rootDirectory)
     if headerDirs:
         return headerDirs
 
-    output = subprocess.check_output(['find', '-L', rootDirectory, '-name', '*.h'],
-                                     universal_newlines=True)
+    output = subprocess.check_output(
+        ["find", "-L", rootDirectory, "-name", "*.h"], universal_newlines=True
+    )
     headers = output.splitlines()
     headerDirs = set()
     frameworks = set()
     for h in headers:
-        frameworkIndex = h.rfind('.framework')
+        frameworkIndex = h.rfind(".framework")
         if frameworkIndex != -1:
             h = os.path.dirname(h[:frameworkIndex])
             frameworks.add(h)
@@ -158,29 +188,28 @@ def findAllHeaderDirectory(rootDirectory):
     headerDirsCacheDict[rootDirectory] = (headerDirs, frameworks)
     return headerDirs, frameworks
 
+
 def findAllSwiftFiles(rootDirectory):
-    output = subprocess.check_output(['find', '-H', rootDirectory, '-name', '*.swift'],
-                                     universal_newlines=True)
+    output = subprocess.check_output(
+        ["find", "-H", rootDirectory, "-name", "*.swift"], universal_newlines=True
+    )
     return [os.path.realpath(l) for l in output.splitlines()]
 
 
-cmd_split_pattern = re.compile(r"""
-"([^"]*)" |     # like "xxx xxx"
-'([^']*)' |     # like 'xxx xxx'
-((?:\\[ ]|\S)+) # like xxx\ xxx
-""", re.X)
 def cmd_split(s):
     # shlex.split is slow, use a simple version, only consider most case
     def extract(m):
-        if m.lastindex == 3: # \ escape version. remove it
+        if m.lastindex == 3:  # \ escape version. remove it
             return m.group(m.lastindex).replace("\\ ", " ")
         return m.group(m.lastindex)
-    return [extract(m)
-            for m in cmd_split_pattern.finditer(s)]
+
+    return [extract(m) for m in cmd_split_pattern.finditer(s)]
+
 
 def readFileList(path):
     with open(path) as f:
         return [os.path.realpath(i) for i in cmd_split(f.read())]
+
 
 def getFileList(path, cache):
     files = cache.get(path)
@@ -190,33 +219,50 @@ def getFileList(path, cache):
         cache[path] = files
     return files
 
+
 def filterSwiftArgs(items, fileListCache):
     """
     f: should return True to accept, return number to skip next number flags
     """
     it = iter(items)
     try:
-      while True:
-        arg = next(it)
+        while True:
+            arg = next(it)
 
-        # -working-directory raise unsupported arg error
-        if arg in {"-primary-file", "-o", "-serialize-diagnostics-path", "-working-directory", "-Xfrontend"}:
-            next(it)
-            continue
-        if arg.startswith("-emit"):
-            if arg.endswith("-path"): next(it)
-            continue
-        if arg in {"-frontend", "-c", "-pch-disable-validation", "-index-system-modules", "-enable-objc-interop", '-whole-module-optimization', "-O"}:
-            continue
-        if arg == "-filelist": # sourcekit dont support filelist, unfold it
-            yield from getFileList(next(it), fileListCache)
-            continue
-        if arg.startswith("@"): # swift 5.1 filelist, unfold it
-            yield from getFileList(arg[1:], fileListCache)
-            continue
-        yield arg
-    except StopIteration as e:
+            # -working-directory raise unsupported arg error
+            if arg in {
+                "-primary-file",
+                "-o",
+                "-serialize-diagnostics-path",
+                "-working-directory",
+                "-Xfrontend",
+            }:
+                next(it)
+                continue
+            if arg.startswith("-emit"):
+                if arg.endswith("-path"):
+                    next(it)
+                continue
+            if arg in {
+                "-frontend",
+                "-c",
+                "-pch-disable-validation",
+                "-index-system-modules",
+                "-enable-objc-interop",
+                "-whole-module-optimization",
+                "-O",
+            }:
+                continue
+            if arg == "-filelist":  # sourcekit dont support filelist, unfold it
+                yield from getFileList(next(it), fileListCache)
+                continue
+            if arg.startswith("@"):  # swift 5.1 filelist, unfold it
+                yield from getFileList(arg[1:], fileListCache)
+                continue
+            yield arg
+    except StopIteration:
         pass
+
 
 def findSwiftModuleRoot(filename):
     """ return project root or None. if not found"""
@@ -224,49 +270,69 @@ def findSwiftModuleRoot(filename):
     directory = os.path.dirname(filename)
     flagFile = None
     compileFile = None
-    while directory and directory != '/':
+    while directory and directory != "/":
         p = os.path.join(directory, ".swiftflags")
         if os.path.isfile(p):
-            return (directory, p, compileFile) # prefer use swiftflags file as module root directory
+            return (
+                directory,
+                p,
+                compileFile,
+            )  # prefer use swiftflags file as module root directory
 
         if compileFile is None:
             p = os.path.join(directory, ".compile")
-            if os.path.isfile(p): compileFile = p
+            if os.path.isfile(p):
+                compileFile = p
 
-        if isProjectRoot(directory): break
-        else: directory = os.path.dirname(directory)
+        if isProjectRoot(directory):
+            break
+        else:
+            directory = os.path.dirname(directory)
     else:
         return (None, flagFile, compileFile)
 
     return (directory, flagFile, compileFile)
 
-def CommandForSwiftInCompile(filename, compileFile, global_store):
-    store = global_store.setdefault('compile', {})
+
+def CommandForSwiftInCompile(filename, compileFile, global_store) -> str:
+    store = global_store.setdefault("compile", {})
     info = store.get(compileFile)
     if info is None:
         info = {}
-        store[compileFile] = info # cache first to avoid re enter when error
+        store[compileFile] = info  # cache first to avoid re enter when error
 
         import json
+
         with open(compileFile) as f:
-            m = json.load(f) # type: list
-            info.update( (f, i['command'])
-                for i in m if "files" in i and "command" in i
-                for f in i['files']
-            ) # swift module files
-            info.update( (f.strip(), i['command'])
-                for i in m if "fileLists" in i and "command" in i
-                for l in i['fileLists'] if os.path.isfile(l)
-                for f in getFileList(l, global_store.setdefault('filelist', {}))
-            ) # swift file lists
-            info.update( (i["file"],i["command"]) # now not use other argument, like cd
-                        for i in m
-                        if "file" in i and "command" in i ) # single file command
-    return info.get(filename, "")
+            m = json.load(f)  # type: list
+            info.update(
+                (f, i["command"])
+                for i in m
+                if "files" in i and "command" in i
+                for f in i["files"]
+            )  # swift module files
+            info.update(
+                (f.strip(), i["command"])
+                for i in m
+                if "fileLists" in i and "command" in i
+                for l in i["fileLists"]
+                if os.path.isfile(l)
+                for f in getFileList(l, global_store.setdefault("filelist", {}))
+            )  # swift file lists
+            info.update(
+                (i["file"], i["command"])  # now not use other argument, like cd
+                for i in m
+                if "file" in i and "command" in i
+            )  # single file command
+    # xcode 12 escape =, but not recognized...
+    return info.get(filename, "").replace("\\=", "=")
+
 
 globalStore = {}
+
+
 def FlagsForSwift(filename, **kwargs):
-    store = kwargs.get('store', globalStore)
+    store = kwargs.get("store", globalStore)
     print("store is ", store)
     filename = os.path.realpath(filename)
     final_flags = []
@@ -276,68 +342,70 @@ def FlagsForSwift(filename, **kwargs):
         command = CommandForSwiftInCompile(filename, compileFile, store)
         print(f"command for {filename} is: {command}")
         if command:
-            flags = cmd_split(command)[1:] # ignore executable
-            final_flags = list(filterSwiftArgs(flags, store.setdefault('filelist', {})))
+            flags = cmd_split(command)[1:]  # ignore executable
+            final_flags = list(filterSwiftArgs(flags, store.setdefault("filelist", {})))
 
     if not final_flags and flagFile:
         headers, frameworks = findAllHeaderDirectory(project_root)
         for h in headers:
-            final_flags += ['-Xcc', '-I' + h]
+            final_flags += ["-Xcc", "-I" + h]
         for f in frameworks:
-            final_flags.append( '-F' + f )
+            final_flags.append("-F" + f)
         swiftfiles = findAllSwiftFiles(project_root)
         final_flags += swiftfiles
         a = additionalFlags(flagFile)
         if a:
             # sourcekit not allow same swift name. so if same name, use the find one to support move file
-            swift_names = set( os.path.basename(p) for p in swiftfiles )
-            final_flags += (arg for arg in filterSwiftArgs(a, store.setdefault('filelist', {}))
-                                if os.path.basename(arg) not in swift_names)
+            swift_names = set(os.path.basename(p) for p in swiftfiles)
+            final_flags += (
+                arg
+                for arg in filterSwiftArgs(a, store.setdefault("filelist", {}))
+                if os.path.basename(arg) not in swift_names
+            )
         else:
             final_flags += [
-                '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/',
+                "-sdk",
+                "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/",
             ]
     if not final_flags:
         final_flags = [
             filename,
-            '-sdk', '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/',
+            "-sdk",
+            "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/",
         ]
 
-    return {
-        'flags': final_flags,
-        'do_cache': True
-    }
+    return {"flags": final_flags, "do_cache": True}
 
 
-DIR_OF_THIS_SCRIPT = os.path.abspath( os.path.dirname( __file__ ) )
-DIR_OF_THIRD_PARTY = os.path.join( DIR_OF_THIS_SCRIPT, 'third_party' )
-DIR_OF_YCMD_THIRD_PARTY = os.path.join( DIR_OF_THIRD_PARTY,
-                                        'ycmd', 'third_party' )
+DIR_OF_THIS_SCRIPT = os.path.abspath(os.path.dirname(__file__))
+DIR_OF_THIRD_PARTY = os.path.join(DIR_OF_THIS_SCRIPT, "third_party")
+DIR_OF_YCMD_THIRD_PARTY = os.path.join(DIR_OF_THIRD_PARTY, "ycmd", "third_party")
 
 
-def GetStandardLibraryIndexInSysPath( sys_path ):
-  for index, path in enumerate( sys_path ):
-    if os.path.isfile( os.path.join( path, 'os.py' ) ):
-      return index
-  raise RuntimeError( 'Could not find standard library path in Python path.' )
+def GetStandardLibraryIndexInSysPath(sys_path):
+    for index, path in enumerate(sys_path):
+        if os.path.isfile(os.path.join(path, "os.py")):
+            return index
+    raise RuntimeError("Could not find standard library path in Python path.")
 
 
-def PythonSysPath( **kwargs ):
-  sys_path = kwargs[ 'sys_path' ]
+def PythonSysPath(**kwargs):
+    sys_path = kwargs["sys_path"]
 
-  for folder in os.listdir( DIR_OF_THIRD_PARTY ):
-    sys_path.insert( 0, os.path.realpath( os.path.join( DIR_OF_THIRD_PARTY,
-                                                        folder ) ) )
+    for folder in os.listdir(DIR_OF_THIRD_PARTY):
+        sys_path.insert(0, os.path.realpath(os.path.join(DIR_OF_THIRD_PARTY, folder)))
 
-  for folder in os.listdir( DIR_OF_YCMD_THIRD_PARTY ):
-    if folder == 'python-future':
-      folder = os.path.join( folder, 'src' )
-      sys_path.insert( GetStandardLibraryIndexInSysPath( sys_path ) + 1,
-                       os.path.realpath( os.path.join( DIR_OF_YCMD_THIRD_PARTY,
-                                                       folder ) ) )
-      continue
+    for folder in os.listdir(DIR_OF_YCMD_THIRD_PARTY):
+        if folder == "python-future":
+            folder = os.path.join(folder, "src")
+            sys_path.insert(
+                GetStandardLibraryIndexInSysPath(sys_path) + 1,
+                os.path.realpath(os.path.join(DIR_OF_YCMD_THIRD_PARTY, folder)),
+            )
+            continue
 
-    sys_path.insert( 0, os.path.realpath( os.path.join( DIR_OF_YCMD_THIRD_PARTY,
-                                                        folder ) ) )
+        sys_path.insert(
+            0, os.path.realpath(os.path.join(DIR_OF_YCMD_THIRD_PARTY, folder))
+        )
 
-  return sys_path
+    return sys_path
