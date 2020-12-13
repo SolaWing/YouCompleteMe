@@ -1,3 +1,29 @@
+function! s:WaitForCommandRequestComplete()
+  call WaitForAssert( { ->
+        \ assert_true( py3eval(
+        \     'ycm_state.GetCommandRequest() is not None and '
+        \   . 'ycm_state.GetCommandRequest().Done()' ) )
+        \ } )
+
+  call WaitForAssert( { ->
+        \ assert_equal( -1,
+        \               youcompleteme#Test_GetPollers().command.id )
+        \ } )
+endfunction
+
+function! s:CheckNoCommandRequest()
+  call WaitForAssert( { ->
+        \ assert_true( py3eval(
+        \     'ycm_state.GetCommandRequest() is None or '
+        \   . 'ycm_state.GetCommandRequest().Done()' ) )
+        \ } )
+
+  call WaitForAssert( { ->
+        \ assert_equal( -1,
+        \               youcompleteme#Test_GetPollers().command.id )
+        \ } )
+endfunction
+
 function! s:CheckPopupVisible( row, col, text, syntax )
   " Takes a buffer position, converts it to a screen position and checks the
   " popup found at that location
@@ -11,14 +37,17 @@ function! s:CheckPopupVisibleScreenPos( loc, text, syntax )
   " has 'text' (a list of lines) and 'syntax' the &syntax setting
   " popup found at that location
   redraw
+  call s:WaitForCommandRequestComplete()
+  call WaitForAssert( { ->
+        \   assert_notequal( 0,
+        \                    popup_locate( a:loc.row, a:loc.col ),
+        \                    'Locate popup at ('
+        \                    . a:loc.row
+        \                    . ','
+        \                    . a:loc.col
+        \                    . ')' )
+       \ } )
   let popup = popup_locate( a:loc.row, a:loc.col )
-  call assert_notequal( 0,
-                      \ popup,
-                      \ 'Locate popup at ('
-                      \ . a:loc.row
-                      \ . ','
-                      \ . a:loc.col
-                      \ . ')' )
   if a:text isnot v:none
     call assert_equal( a:text,
                      \ getbufline( winbufnr( popup ), 1, '$' ) )
@@ -26,21 +55,29 @@ function! s:CheckPopupVisibleScreenPos( loc, text, syntax )
   call assert_equal( a:syntax, getbufvar( winbufnr( popup ), '&syntax' ) )
 endfunction
 
-function! s:CheckPopupNotVisible( row, col )
+function! s:CheckPopupNotVisible( row, col, with_request=v:true )
   " Takes a buffer position and ensures there is no popup visible at that
   " position. Like CheckPopupVisible, the position must be valid (i.e. there
   " must be buffer text at that position). Otherwise, you need to pass the
   " _screen_ position to CheckPopupNotVisibleScreenPos
   redraw
   let loc = screenpos( win_getid(), a:row, a:col )
-  return s:CheckPopupNotVisibleScreenPos( loc )
+  return s:CheckPopupNotVisibleScreenPos( loc, a:with_request )
 endfunction
 
-function! s:CheckPopupNotVisibleScreenPos( loc )
+function! s:CheckPopupNotVisibleScreenPos( loc, with_request=v:true )
   " Takes a position dict like the one returned by screenpos() and verifies it
   " does not have a popup drawn on it.
   redraw
-  call assert_equal( 0, popup_locate( a:loc.row, a:loc.col ) )
+  if a:with_request
+    call s:WaitForCommandRequestComplete()
+  else
+    call s:CheckNoCommandRequest()
+  endif
+  call WaitForAssert( { ->
+        \   assert_equal( 0,
+        \                 popup_locate( a:loc.row, a:loc.col ) )
+        \ } )
 endfunction
 
 let s:python_oneline = {
@@ -51,11 +88,13 @@ let s:cpp_lifetime = {
       \ 'GetDoc': [ 'field lifetime',
       \             '',
       \             'Type: char',
+      \             'Offset: 16 bytes',
+      \             'Size: 1 byte',
       \             'nobody will live > 128 years',
       \             '',
       \             '// In PointInTime',
-      \             'char lifetime' ],
-      \ 'GetType': [ 'char lifetime; // In PointInTime' ],
+      \             'public: char lifetime' ],
+      \ 'GetType': [ 'public: char lifetime; // In PointInTime' ],
       \ }
 
 function! SetUp()
@@ -69,6 +108,8 @@ endfunction
 
 function! TearDown()
   let g:ycm_auto_hover='CursorHold'
+
+  call assert_equal( -1, youcompleteme#Test_GetPollers().command.id )
 endfunction
 
 function! Test_Hover_Uses_GetDoc()
@@ -95,7 +136,6 @@ function! Test_Hover_Uses_GetDoc()
   normal \D
   call s:CheckPopupVisible( 11, 4, s:python_oneline.GetDoc, '' )
   call popup_clear()
-  %bwipe!
 endfunction
 
 function! Test_Hover_Uses_GetHover()
@@ -120,7 +160,6 @@ EOPYTHON
   call s:CheckPopupNotVisible( 11, 4 )
   call popup_clear()
 
-  %bwipe!
 endfunction
 
 function! Test_Hover_Uses_None()
@@ -135,10 +174,9 @@ EOPYTHON
 
   call setpos( '.', [ 0, 12, 3 ] )
   normal \D
-  call s:CheckPopupNotVisible( 11, 4 )
+  call s:CheckPopupNotVisible( 11, 4, v:false )
 
   call popup_clear()
-  %bwipe!
 endfunction
 
 function! Test_Hover_Uses_GetType()
@@ -154,8 +192,8 @@ EOPYTHON
 
   call assert_equal( { 'command': 'GetType', 'syntax': 'python' }, b:ycm_hover )
 
-  call s:CheckPopupNotVisible( 2, 1 )
-  call s:CheckPopupNotVisible( 2, 2 )
+  call s:CheckPopupNotVisible( 2, 1, v:none )
+  call s:CheckPopupNotVisible( 2, 2, v:none )
 
   " some doc - autocommand
   call setpos( '.', [ 0, 12, 3 ] )
@@ -177,7 +215,6 @@ EOPYTHON
   call s:CheckPopupVisible( 11, 4, s:python_oneline.GetType, 'python' )
   call popup_clear()
 
-  %bwipe!
 endfunction
 
 function! Test_Hover_NonNative()
@@ -185,15 +222,16 @@ function! Test_Hover_NonNative()
   setfiletype NoASupportedFileType
   let messages_before = execute( 'messages' )
   doautocmd CursorHold
+  call s:CheckNoCommandRequest()
   call assert_false( exists( 'b:ycm_hover' ) )
   call assert_equal( messages_before, execute( 'messages' ) )
 
   normal \D
+  call s:CheckNoCommandRequest()
   call assert_false( exists( 'b:ycm_hover' ) )
   call assert_equal( messages_before, execute( 'messages' ) )
 
   call popup_clear()
-  %bwipe!
 endfunction
 
 function SetUp_Test_Hover_Disabled_NonNative()
@@ -204,12 +242,12 @@ function! Test_Hover_Disabled_NonNative()
   call youcompleteme#test#setup#OpenFile( '_not_a_file', { 'native_ft': 0 } )
   setfiletype NoASupportedFileType
   let messages_before = execute( 'messages' )
-  silent doautocmd CursorHold
+  silent! doautocmd CursorHold
+  call s:CheckNoCommandRequest()
   call assert_false( exists( 'b:ycm_hover' ) )
   call assert_equal( messages_before, execute( 'messages' ) )
 
   call popup_clear()
-  %bwipe!
 endfunction
 
 function! SetUp_Test_AutoHover_Disabled()
@@ -224,8 +262,8 @@ function! Test_AutoHover_Disabled()
   call assert_false( exists( 'b:ycm_hover' ) )
 
   call setpos( '.', [ 0, 12, 3 ] )
-  silent doautocmd CursorHold
-  call s:CheckPopupNotVisible( 11, 4 )
+  silent! doautocmd CursorHold
+  call s:CheckPopupNotVisible( 11, 4, v:false )
   call assert_equal( messages_before, execute( 'messages' ) )
 
   " Manual hover is still supported
@@ -236,11 +274,10 @@ function! Test_AutoHover_Disabled()
 
   " Manual close hover is still supported
   normal \D
-  call s:CheckPopupNotVisible( 11, 4 )
+  call s:CheckPopupNotVisible( 11, 4, v:false )
   call assert_equal( messages_before, execute( 'messages' ) )
 
   call popup_clear()
-  %bwipeout!
 endfunction
 
 function! Test_Hover_MoveCursor()
@@ -270,14 +307,9 @@ function! Test_Hover_MoveCursor()
   call feedkeys( "b\\D", 'xt' )
   call s:CheckPopupVisible( 11, 3, s:python_oneline.GetDoc, '' )
 
-  " line
-  call feedkeys( "ji\<Esc>", 'xt' )
-  call s:CheckPopupNotVisible( 11, 3 )
-
   call test_override( 'ALL', 0 )
 
   call popup_clear()
-  %bwipeout!
 endfunction
 
 function! Test_Hover_Dismiss()
@@ -295,11 +327,11 @@ function! Test_Hover_Dismiss()
 
   " Dismiss
   normal \D
-  call s:CheckPopupNotVisible( 11, 3 )
+  call s:CheckPopupNotVisible( 11, 3, v:false )
 
   " Make sure it doesn't come back
-  doautocmd CursorHold
-  call s:CheckPopupNotVisible( 11, 3 )
+  silent! doautocmd CursorHold
+  call s:CheckPopupNotVisible( 11, 3, v:false )
 
   " Move the cursor (again this is tricky). I couldn't find any tests in vim's
   " own code that trigger CursorMoved, so we just cheat. (for the record, just
@@ -309,7 +341,6 @@ function! Test_Hover_Dismiss()
   call s:CheckPopupVisible( 11, 3, s:python_oneline.GetDoc, '' )
 
   call popup_clear()
-  %bwipeout!
 endfunction
 
 function! SetUp_Test_Hover_Custom_Syntax()
@@ -336,14 +367,13 @@ function! Test_Hover_Custom_Syntax()
                                    \ 'cpp' )
 
   normal \D
-  call s:CheckPopupNotVisibleScreenPos( { 'row': 7, 'col': 9 } )
+  call s:CheckPopupNotVisibleScreenPos( { 'row': 7, 'col': 9 }, v:false )
 
   call popup_clear()
-  %bwipe!
 endfunction
 
 function! TearDown_Test_Hover_Custom_Syntax()
-  au! MyYCMCustom
+  silent! au! MyYCMCustom
 endfunction
 
 function! SetUp_Test_Hover_Custom_Command()
@@ -369,11 +399,10 @@ function! Test_Hover_Custom_Command()
   call s:CheckPopupVisible( 5, 9, s:cpp_lifetime.GetType, 'cpp' )
 
   call popup_clear()
-  %bwipe!
 endfunction
 
 function! TearDown_Test_Hover_Custom_Command()
-  au! MyYCMCustom
+  silent! au! MyYCMCustom
 endfunction
 
 function! Test_Long_Single_Line()
@@ -386,8 +415,8 @@ function! Test_Long_Single_Line()
   call s:CheckPopupVisible( 36, 1, v:none, '' )
   call s:CheckPopupVisible( 36, &columns, v:none, '' )
 
-  call s:CheckPopupNotVisible( 37, 1 )
-  call s:CheckPopupNotVisible( 37, &columns )
+  call s:CheckPopupNotVisible( 37, 1, v:false )
+  call s:CheckPopupNotVisible( 37, &columns, v:false )
 
   " Also wrap is ON so it should cover at least 2 lines + 2 for the header/empty
   " line
@@ -397,7 +426,6 @@ function! Test_Long_Single_Line()
   call s:CheckPopupVisible( 33, &columns, v:none, '' )
 
   call popup_clear()
-  %bwipe!
 endfunction
 
 function! Test_Long_Wrapped()
@@ -410,17 +438,16 @@ function! Test_Long_Wrapped()
   call s:CheckPopupVisible( 37, 1, v:none, '' )
   call s:CheckPopupVisible( 37, &columns, v:none, '' )
 
-  call s:CheckPopupNotVisible( 38, 1 )
-  call s:CheckPopupNotVisible( 38, &columns )
+  call s:CheckPopupNotVisible( 38, 1, v:false )
+  call s:CheckPopupNotVisible( 38, &columns, v:false )
 
   " Also, wrap is off, so it should be _exactly_ 9 lines + 2 for the signature
   " and the empty line
   call s:CheckPopupVisible( 27, 1, v:none, '' )
   call s:CheckPopupVisible( 27, &columns, v:none, '' )
 
-  call s:CheckPopupNotVisible( 26, 1 )
-  call s:CheckPopupNotVisible( 26, &columns )
+  call s:CheckPopupNotVisible( 26, 1, v:false )
+  call s:CheckPopupNotVisible( 26, &columns, v:false )
 
   call popup_clear()
-  %bwipe!
 endfunction

@@ -35,8 +35,11 @@ from ycm import syntax_parse
 from ycm.client.ycmd_keepalive import YcmdKeepalive
 from ycm.client.base_request import BaseRequest, BuildRequestData
 from ycm.client.completer_available_request import SendCompleterAvailableRequest
-from ycm.client.command_request import SendCommandRequest, GetCommandResponse
+from ycm.client.command_request import ( SendCommandRequest,
+                                         SendCommandRequestAsync,
+                                         GetCommandResponse )
 from ycm.client.completion_request import CompletionRequest
+from ycm.client.resolve_completion_request import ResolveCompletionItem
 from ycm.client.signature_help_request import ( SignatureHelpRequest,
                                                 SigHelpAvailableByFileType )
 from ycm.client.debug_info_request import ( SendDebugInfoRequest,
@@ -96,24 +99,14 @@ HANDLE_FLAG_INHERIT = 0x00000001
 
 
 class YouCompleteMe:
-  def __init__( self ):
-    self._available_completers = {}
-    self._user_options = None
-    self._user_notified_about_crash = False
-    self._omnicomp = None
-    self._buffers = None
-    self._latest_completion_request = None
-    self._latest_signature_help_request = None
-    self._signature_help_available_requests = SigHelpAvailableByFileType()
-    self._signature_help_state = signature_help.SignatureHelpState()
+  def __init__( self, default_options = {} ):
     self._logger = logging.getLogger( 'ycm' )
     self._client_logfile = None
     self._server_stdout = None
     self._server_stderr = None
     self._server_popen = None
-    self._filetypes_with_keywords_loaded = set()
+    self._default_options = default_options
     self._ycmd_keepalive = YcmdKeepalive()
-    self._server_is_ready_with_cache = False
     self._SetUpLogging()
     self._SetUpServer()
     self._ycmd_keepalive.Start()
@@ -139,7 +132,13 @@ class YouCompleteMe:
     self._server_is_ready_with_cache = False
     self._message_poll_requests = {}
 
-    self._user_options = base.GetUserOptions()
+    self._latest_completion_request = None
+    self._latest_signature_help_request = None
+    self._signature_help_available_requests = SigHelpAvailableByFileType()
+    self._latest_command_reqeust = None
+
+    self._signature_help_state = signature_help.SignatureHelpState()
+    self._user_options = base.GetUserOptions( self._default_options )
     self._omnicomp = OmniCompleter( self._user_options )
     self._buffers = BufferDict( self._user_options )
 
@@ -321,8 +320,6 @@ class YouCompleteMe:
         response[ 'completions' ],
         self._saw_completions.saw(self._latest_completion_request, response))
     self._saw_completions.see(self._latest_completion_request, response)
-    response[ 'completions' ] = base.AdjustCandidateInsertionText(
-        response[ 'completions' ] )
     response[ 'completions' ] = self._prependNumber(response['completions'])
     return response
 
@@ -478,10 +475,11 @@ class YouCompleteMe:
       has_range,
       start_line,
       end_line )
-    return SendCommandRequest( final_arguments,
-                               modifiers,
-                               self._user_options[ 'goto_buffer_command' ],
-                               extra_data )
+    return SendCommandRequest(
+      final_arguments,
+      modifiers,
+      self._user_options[ 'goto_buffer_command' ],
+      extra_data )
 
 
   def GetCommandResponse( self, arguments ):
@@ -493,10 +491,24 @@ class YouCompleteMe:
     return GetCommandResponse( final_arguments, extra_data )
 
 
+  def SendCommandRequestAsync( self, arguments ):
+    final_arguments, extra_data = self._GetCommandRequestArguments(
+      arguments,
+      False,
+      0,
+      0 )
+    self._latest_command_reqeust = SendCommandRequestAsync( final_arguments,
+                                                            extra_data )
+
+
+  def GetCommandRequest( self ):
+    return self._latest_command_reqeust
+
 
   def GetDefinedSubcommands( self ):
-    subcommands = BaseRequest().PostDataToHandler( BuildRequestData(),
-                                                   'defined_subcommands' )
+    request = BaseRequest()
+    subcommands = request.PostDataToHandler( BuildRequestData(),
+                                             'defined_subcommands' )
     return subcommands if subcommands else []
 
 
@@ -789,6 +801,30 @@ class YouCompleteMe:
           return True
 
 
+  def ResolveCompletionItem( self, item ):
+    # Note: As mentioned elsewhere, we replace the current completion request
+    # with a resolve request. It's not valid to have simultaneous resolve and
+    # completion requests, because the resolve request uses the request data
+    # from the last completion request and is therefore dependent on it not
+    # having changed.
+    #
+    # The result of this is that self.GetCurrentCompletionRequest() might return
+    # either a completion request of a resolve request and it's the
+    # responsibility of the vimscript code to ensure that it only does one at a
+    # time. This is handled by re-using the same poller for completions and
+    # resolves.
+    completion_request = self.GetCurrentCompletionRequest()
+    if not completion_request:
+      return False
+
+    request  = ResolveCompletionItem( completion_request, item )
+    if not request:
+      return False
+
+    self._latest_completion_request = request
+    return True
+
+
   def GetErrorCount( self ):
     return self.CurrentBuffer().GetErrorCount()
 
@@ -1035,6 +1071,7 @@ class YouCompleteMe:
 
 
 class SawCompletions(object):
+    """ mark completion saw by user but not selected. it can use to calculate score """
     def __init__(self):
         self._pos = None
         self._saw = dict()
@@ -1043,7 +1080,9 @@ class SawCompletions(object):
         """ return saw completions """
         d = request.request_data
         pos = (d['line_num'], response['completion_start_column'], d['filepath'])
+        # only compare the filter, not new request
         if pos != self._pos: return frozenset()
+        # decide saw by the appear offset. currently it's word_offset - offset
         offset = d['column_num'] - pos[1]
         # logging.getLogger( 'ycm' ).info("saw %d (%s)", d['column_num'], pos) # type: logging.Logger
         return frozenset( word for (word, word_offset) in self._saw.items() if abs(word_offset - offset) > 1 )
